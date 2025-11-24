@@ -547,6 +547,83 @@ export class FilesStore {
     this.#modifiedFiles.clear();
   }
 
+  /**
+   * Clear the entire workspace - remove all files and folders from work directory
+   * Used when starting a fresh conversation
+   */
+  async clearWorkspace() {
+    try {
+      const container = await this.#webcontainer;
+
+      logger.info('Starting workspace cleanup...');
+
+      // First, clear the files map immediately to prevent any visual issues
+      this.files.set({});
+      this.#size = 0;
+      this.#modifiedFiles.clear();
+      this.#deletedPaths.clear();
+
+      // Try to read directory, if it doesn't exist, create it
+      let entries = [];
+
+      try {
+        entries = await container.fs.readdir(WORK_DIR, { withFileTypes: true });
+        logger.info(`Found ${entries.length} entries to remove`);
+      } catch (error: any) {
+        if (error.code === 'ENOENT') {
+          // Directory doesn't exist, create it
+          await container.fs.mkdir(WORK_DIR, { recursive: true });
+          logger.info('Work directory created');
+
+          return;
+        }
+
+        throw error;
+      }
+
+      // Delete each entry
+      const deletePromises = entries.map(async (entry) => {
+        const fullPath = path.join(WORK_DIR, entry.name);
+
+        try {
+          if (entry.isDirectory()) {
+            await container.fs.rm(fullPath, { recursive: true, force: true });
+            logger.info(`Removed directory: ${fullPath}`);
+          } else {
+            await container.fs.rm(fullPath, { force: true });
+            logger.info(`Removed file: ${fullPath}`);
+          }
+        } catch (err: any) {
+          logger.warn(`Failed to remove ${fullPath}:`, err);
+        }
+      });
+
+      await Promise.all(deletePromises);
+
+      // Wait a bit to ensure file watchers process the deletions
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Force refresh the files map to ensure it's empty
+      this.files.set({});
+      this.#size = 0;
+
+      // Clear deleted paths from localStorage
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('bolt-deleted-paths');
+      }
+
+      logger.info('Workspace cleared successfully - all files removed');
+    } catch (error) {
+      logger.error('Failed to clear workspace:', error);
+
+      // Even if there's an error, ensure the store is cleared
+      this.files.set({});
+      this.#size = 0;
+      this.#modifiedFiles.clear();
+      this.#deletedPaths.clear();
+    }
+  }
+
   async saveFile(filePath: string, content: string) {
     const webcontainer = await this.#webcontainer;
 
@@ -592,8 +669,17 @@ export class FilesStore {
   async #init() {
     const webcontainer = await this.#webcontainer;
 
-    // Clean up any files that were previously deleted
-    this.#cleanupDeletedFiles();
+    // Get the current chat ID
+    const currentChatId = getCurrentChatId();
+
+    // If there's no chat ID (new conversation), ensure workspace is clean
+    if (!currentChatId) {
+      logger.info('No chat ID detected - clearing workspace for fresh start');
+      await this.clearWorkspace();
+    } else {
+      // Clean up any files that were previously deleted
+      this.#cleanupDeletedFiles();
+    }
 
     // Set up file watcher
     webcontainer.internal.watchPaths(
@@ -605,22 +691,21 @@ export class FilesStore {
       bufferWatchEvents(100, this.#processEventBuffer.bind(this)),
     );
 
-    // Get the current chat ID
-    const currentChatId = getCurrentChatId();
-
     // Migrate any legacy locks to the current chat
-    migrateLegacyLocks(currentChatId);
+    if (currentChatId) {
+      migrateLegacyLocks(currentChatId);
 
-    // Load locked files immediately for the current chat
-    this.#loadLockedFiles(currentChatId);
-
-    /**
-     * Also set up a timer to load locked files again after a delay.
-     * This ensures that locks are applied even if files are loaded asynchronously.
-     */
-    setTimeout(() => {
+      // Load locked files immediately for the current chat
       this.#loadLockedFiles(currentChatId);
-    }, 2000);
+
+      /**
+       * Also set up a timer to load locked files again after a delay.
+       * This ensures that locks are applied even if files are loaded asynchronously.
+       */
+      setTimeout(() => {
+        this.#loadLockedFiles(currentChatId);
+      }, 2000);
+    }
 
     /**
      * Set up a less frequent periodic check to ensure locks remain applied.
@@ -631,7 +716,10 @@ export class FilesStore {
       clearCache();
 
       const latestChatId = getCurrentChatId();
-      this.#loadLockedFiles(latestChatId);
+
+      if (latestChatId) {
+        this.#loadLockedFiles(latestChatId);
+      }
     }, 30000); // Reduced from 10s to 30s
   }
 

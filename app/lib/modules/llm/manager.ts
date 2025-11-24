@@ -88,9 +88,10 @@ export class LLMManager {
     }
 
     // Get dynamic models from all providers that support them
-    const dynamicModels = await Promise.all(
-      Array.from(this._providers.values())
-        .filter((provider) => enabledProviders.includes(provider.name))
+    const providers = Array.from(this._providers.values()).filter((p) => enabledProviders.includes(p.name));
+
+    const dynamicByProvider = await Promise.all(
+      providers
         .filter(
           (provider): provider is BaseProvider & Required<Pick<ProviderInfo, 'getDynamicModels'>> =>
             !!provider.getDynamicModels,
@@ -99,31 +100,35 @@ export class LLMManager {
           const cachedModels = provider.getModelsFromCache(options);
 
           if (cachedModels) {
-            return cachedModels;
+            return { provider: provider.name, models: cachedModels } as { provider: string; models: ModelInfo[] };
           }
 
-          const dynamicModels = await provider
+          const models = await provider
             .getDynamicModels(apiKeys, providerSettings?.[provider.name], serverEnv)
-            .then((models) => {
-              logger.info(`Caching ${models.length} dynamic models for ${provider.name}`);
-              provider.storeDynamicModels(options, models);
+            .then((ms) => {
+              logger.info(`Caching ${ms.length} dynamic models for ${provider.name}`);
+              provider.storeDynamicModels(options, ms);
 
-              return models;
+              return ms;
             })
             .catch((err) => {
               logger.error(`Error getting dynamic models ${provider.name} :`, err);
-              return [];
+              return [] as ModelInfo[];
             });
 
-          return dynamicModels;
+          return { provider: provider.name, models } as { provider: string; models: ModelInfo[] };
         }),
     );
-    const staticModels = Array.from(this._providers.values()).flatMap((p) => p.staticModels || []);
-    const dynamicModelsFlat = dynamicModels.flat();
-    const dynamicModelKeys = dynamicModelsFlat.map((d) => `${d.name}-${d.provider}`);
-    const filteredStaticModesl = staticModels.filter((m) => !dynamicModelKeys.includes(`${m.name}-${m.provider}`));
 
-    // Combine static and dynamic models
+    const dynamicModelsFlat = dynamicByProvider.flatMap((d) => d.models);
+    const providersWithDynamic = new Set(dynamicByProvider.filter((d) => d.models.length > 0).map((d) => d.provider));
+
+    const staticModels = providers.flatMap((p) => p.staticModels || []);
+
+    // Keep static models only for providers that had zero dynamic results
+    const filteredStaticModesl = staticModels.filter((m) => !providersWithDynamic.has(m.provider));
+
+    // Combine dynamic first, then eligible static
     const modelList = [...dynamicModelsFlat, ...filteredStaticModesl];
     modelList.sort((a, b) => a.name.localeCompare(b.name));
     this._modelList = modelList;

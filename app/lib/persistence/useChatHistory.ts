@@ -192,8 +192,13 @@ ${value.content}
           toast.error('Failed to load chat: ' + error.message); // More specific error
         });
     } else {
-      // Handle case where there is no mixedId (e.g., new chat)
-      setReady(true);
+      /*
+       * Handle case where there is no mixedId (e.g., new chat)
+       * Reset workbench to ensure a fresh start
+       */
+      workbenchStore.reset().then(() => {
+        setReady(true);
+      });
     }
   }, [mixedId, db, navigate, searchParams]); // Added db, navigate, searchParams dependencies
 

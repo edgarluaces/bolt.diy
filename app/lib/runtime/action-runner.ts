@@ -67,6 +67,8 @@ export class ActionRunner {
   #webcontainer: Promise<WebContainer>;
   #currentExecutionPromise: Promise<void> = Promise.resolve();
   #shellTerminal: () => BoltShell;
+  #fileCount: number = 0; // Track number of files created
+  #maxFiles: number = 5; // Maximum allowed files
   runnerId = atom<string>(`${Date.now()}`);
   actions: ActionsMap = map({});
   onAlert?: (alert: ActionAlert) => void;
@@ -259,6 +261,10 @@ export class ActionRunner {
       unreachable('Shell terminal not found');
     }
 
+    // Auto-open terminal so user can see command execution in real-time
+    const { workbenchStore } = await import('~/lib/stores/workbench');
+    workbenchStore.showTerminal.set(true);
+
     // Pre-validate command for common issues
     const validationResult = await this.#validateShellCommand(action.content);
 
@@ -267,15 +273,66 @@ export class ActionRunner {
       action.content = validationResult.modifiedCommand;
     }
 
-    const resp = await shell.executeCommand(this.runnerId.get(), action.content, () => {
-      logger.debug(`[${action.type}]:Aborting Action\n\n`, action);
-      action.abort();
-    });
-    logger.debug(`${action.type} Shell Response: [exit code:${resp?.exitCode}]`);
+    // Execute in an isolated process to avoid relying on OSC prompt/exit
+    const maxRetries = 2;
+    let attempt = 0;
+    let resp = undefined as Awaited<ReturnType<typeof shell.executeEphemeral>>;
 
-    if (resp?.exitCode != 0) {
-      const enhancedError = this.#createEnhancedShellError(action.content, resp?.exitCode, resp?.output);
+    // Increase timeout for install/setup commands and compound commands with dev servers
+    const isInstallCommand = /npm\s+(install|ci|i)|yarn\s+install|pnpm\s+install/.test(action.content);
+    const isCompoundWithDev = /&&.*npm\s+run\s+(dev|start)|&&.*yarn\s+(dev|start)|&&.*pnpm\s+(dev|start)/.test(
+      action.content,
+    );
+
+    // Reduced timeout to 90s - with minimal deps and optimized flags, install should be much faster
+    const inactivityTimeout = isInstallCommand || isCompoundWithDev ? 90000 : 45000; // 1.5min for installs/dev, 45s for others
+
+    // Show initial feedback for install commands
+    if (isInstallCommand) {
+      shell.terminal?.write('\r\n\x1b[1;36m[Bolt]\x1b[0m Instalando dependencias (optimizado)...\r\n');
+      shell.terminal?.write('\x1b[2m(Con dependencias mínimas esto debería ser rápido)\x1b[0m\r\n\r\n');
+    }
+
+    while (attempt <= maxRetries) {
+      resp = await shell.executeEphemeral(action.content, { inactivityMs: inactivityTimeout });
+      logger.debug(`${action.type} Shell Response (attempt ${attempt + 1}): [exit code:${resp?.exitCode}]`);
+
+      // Exit if we have a result that is not inactivity timeout (124)
+      if (resp && resp.exitCode !== 124) {
+        break;
+      }
+
+      // Don't retry install commands on timeout - they likely just take longer
+      if ((isInstallCommand || isCompoundWithDev) && resp?.exitCode === 124) {
+        logger.warn(`Install/dev command timed out but may have completed - checking output`);
+
+        // If the output suggests success (e.g., "added N packages"), treat as success
+        if (resp.output && /added \d+ packages|audited \d+ packages/.test(resp.output)) {
+          resp.exitCode = 0;
+          break;
+        }
+      }
+
+      // If inactivity detected or no response, retry if attempts remain
+      if (attempt < maxRetries) {
+        shell.terminal?.write(`\r\n[bolt] Sin actividad detectada, reintentando (${attempt + 1}/${maxRetries})...\r\n`);
+      }
+
+      attempt++;
+    }
+
+    if (!resp) {
+      throw new ActionCommandError('Command did not produce output', 'No output received from shell execution');
+    }
+
+    if (resp.exitCode != 0) {
+      const enhancedError = this.#createEnhancedShellError(action.content, resp.exitCode, resp.output);
       throw new ActionCommandError(enhancedError.title, enhancedError.details);
+    }
+
+    // Show success feedback for install commands
+    if (isInstallCommand && resp.exitCode === 0) {
+      shell.terminal?.write('\r\n\x1b[1;32m✓\x1b[0m \x1b[1;36m[Bolt]\x1b[0m Dependencias instaladas correctamente\r\n');
     }
   }
 
@@ -295,13 +352,65 @@ export class ActionRunner {
       unreachable('Shell terminal not found');
     }
 
-    const resp = await shell.executeCommand(this.runnerId.get(), action.content, () => {
+    // Auto-open terminal so user can see dev server startup
+    const { workbenchStore } = await import('~/lib/stores/workbench');
+    workbenchStore.showTerminal.set(true);
+
+    // Start the command in background
+    const commandPromise = shell.executeCommand(this.runnerId.get(), action.content, () => {
       logger.debug(`[${action.type}]:Aborting Action\n\n`, action);
       action.abort();
     });
+
+    // Wait for server-ready event with timeout
+    const webcontainer = await this.#webcontainer;
+    const serverReadyPromise = new Promise<void>((resolve, _reject) => {
+      let resolved = false;
+
+      const timeout = setTimeout(() => {
+        if (resolved) {
+          return;
+        }
+
+        resolved = true;
+        logger.warn('[Start] Server ready timeout - proceeding anyway');
+        resolve(); // Don't fail, just proceed
+      }, 30000); // 30 second timeout
+
+      const onServerReady = (port: number, url: string) => {
+        if (resolved) {
+          return;
+        }
+
+        resolved = true;
+        clearTimeout(timeout);
+        logger.info(`[Start] Server ready on port ${port}: ${url}`);
+        resolve();
+      };
+
+      webcontainer.on('server-ready', onServerReady);
+
+      // Also resolve if command completes successfully
+      commandPromise.then((resp) => {
+        if (resolved) {
+          return;
+        }
+
+        if (resp?.exitCode === 0) {
+          resolved = true;
+          clearTimeout(timeout);
+          resolve();
+        }
+      });
+    });
+
+    // Wait for either server ready or command completion
+    await Promise.race([serverReadyPromise, commandPromise]);
+
+    const resp = await commandPromise;
     logger.debug(`${action.type} Shell Response: [exit code:${resp?.exitCode}]`);
 
-    if (resp?.exitCode != 0) {
+    if (resp?.exitCode != 0 && resp?.exitCode !== undefined) {
       throw new ActionCommandError('Failed To Start Application', resp?.output || 'No Output Available');
     }
 
@@ -315,6 +424,40 @@ export class ActionRunner {
 
     const webcontainer = await this.#webcontainer;
     const relativePath = nodePath.relative(webcontainer.workdir, action.filePath);
+
+    // VALIDATION 1: Warn about file count (but allow creation)
+    if (this.#fileCount >= this.#maxFiles) {
+      logger.warn(
+        `⚠️ WARNING: File count (${this.#fileCount + 1}) exceeds recommended limit (${this.#maxFiles}): ${relativePath}`,
+      );
+      logger.warn('💡 Consider consolidating code into fewer files for better performance');
+    }
+
+    // VALIDATION 2: Warn about forbidden folder structures (but allow creation)
+    const forbiddenFolders = [
+      '/components/',
+      '/pages/',
+      '/data/',
+      '/utils/',
+      '/helpers/',
+      '/hooks/',
+      '/lib/',
+      '/constants/',
+      '/types/',
+      '/styles/',
+      '/assets/',
+    ];
+
+    const normalizedPath = '/' + relativePath.replace(/\\/g, '/');
+    const hasForbiddenFolder = forbiddenFolders.some((forbidden) => normalizedPath.includes(forbidden));
+
+    if (hasForbiddenFolder) {
+      logger.warn(`⚠️ WARNING: Creating file in discouraged folder structure: ${relativePath}`);
+      logger.warn('� Recommended: Keep files in root or /src only. Consolidate components into fewer files.');
+    }
+
+    // Increment file counter for tracking
+    this.#fileCount++;
 
     let folder = nodePath.dirname(relativePath);
 
@@ -651,7 +794,124 @@ export class ActionRunner {
       }
     }
 
+    // Normalize and optimize npm install flows
+    if (trimmedCommand.startsWith('npm ')) {
+      const isInstall = /^npm\s+install(\s|$)/.test(trimmedCommand);
+      const isCi = /^npm\s+ci(\s|$)/.test(trimmedCommand);
+
+      if (isInstall && !isCi) {
+        try {
+          const webcontainer = await this.#webcontainer;
+
+          // Prefer ci if lockfile exists
+          let hasLock = false;
+
+          try {
+            await webcontainer.fs.readFile('package-lock.json', 'utf-8');
+            hasLock = true;
+          } catch {}
+
+          // Clean up obsolete Tailwind plugins before install
+          await this.#cleanObsoleteTailwindPlugins(webcontainer);
+
+          if (hasLock) {
+            // Switch to npm ci (clean install from lockfile)
+            return {
+              shouldModify: true,
+              modifiedCommand: 'npm ci',
+              warning: 'Using npm ci because package-lock.json is present',
+            };
+          }
+
+          // Otherwise, add flags to make install more stable and verbose
+          const extraFlags = ['--progress=true', '--foreground-scripts', '--no-fund', '--no-audit'];
+
+          // Avoid duplicating flags if already present
+          const existingFlags = new Set(trimmedCommand.split(/\s+/).slice(2));
+          const flagsToAdd = extraFlags.filter((f) => !existingFlags.has(f));
+
+          if (flagsToAdd.length > 0) {
+            return {
+              shouldModify: true,
+              modifiedCommand: `${trimmedCommand} ${flagsToAdd.join(' ')}`.trim(),
+              warning: 'Added stability flags to npm install',
+            };
+          }
+        } catch (error) {
+          logger.debug('npm install normalization skipped due to error:', error);
+        }
+      }
+    }
+
     return { shouldModify: false };
+  }
+
+  async #cleanObsoleteTailwindPlugins(webcontainer: WebContainer) {
+    // Check for tailwind.config files
+    const configPaths = ['tailwind.config.js', 'tailwind.config.cjs', 'tailwind.config.mjs', 'tailwind.config.ts'];
+
+    const obsoletePlugins = [
+      '@tailwindcss/line-clamp', // Integrated in Tailwind v3.3+
+      '@tailwindcss/aspect-ratio', // Native aspect-ratio in CSS now
+    ];
+
+    for (const configPath of configPaths) {
+      try {
+        let content = await webcontainer.fs.readFile(configPath, 'utf-8');
+        let modified = false;
+
+        // Remove obsolete plugin imports
+        for (const plugin of obsoletePlugins) {
+          const importRegex = new RegExp(
+            `import\\s+\\w+\\s+from\\s+['"]${plugin.replace('/', '\\/')}['"];?\\s*\\n?`,
+            'g',
+          );
+          const requireRegex = new RegExp(`require\\(['"]${plugin.replace('/', '\\/')}['"]\\),?\\s*`, 'g');
+
+          if (importRegex.test(content) || requireRegex.test(content)) {
+            content = content.replace(importRegex, '');
+            content = content.replace(requireRegex, '');
+            modified = true;
+            logger.info(`Removed obsolete plugin ${plugin} from ${configPath}`);
+          }
+        }
+
+        // Also remove from package.json if present
+        try {
+          const pkgContent = await webcontainer.fs.readFile('package.json', 'utf-8');
+          const pkg = JSON.parse(pkgContent);
+          let pkgModified = false;
+
+          for (const plugin of obsoletePlugins) {
+            if (pkg.dependencies?.[plugin]) {
+              delete pkg.dependencies[plugin];
+              pkgModified = true;
+              logger.info(`Removed ${plugin} from package.json dependencies`);
+            }
+
+            if (pkg.devDependencies?.[plugin]) {
+              delete pkg.devDependencies[plugin];
+              pkgModified = true;
+              logger.info(`Removed ${plugin} from package.json devDependencies`);
+            }
+          }
+
+          if (pkgModified) {
+            await webcontainer.fs.writeFile('package.json', JSON.stringify(pkg, null, 2), 'utf-8');
+          }
+        } catch {
+          // package.json might not exist yet
+        }
+
+        if (modified) {
+          await webcontainer.fs.writeFile(configPath, content, 'utf-8');
+        }
+
+        break; // Only process the first config file found
+      } catch {
+        // Config file doesn't exist, try next
+      }
+    }
   }
 
   #createEnhancedShellError(

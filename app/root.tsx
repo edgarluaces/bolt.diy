@@ -28,10 +28,22 @@ export const links: LinksFunction = () => [
     href: '/favicon.svg',
     type: 'image/svg+xml',
   },
+
+  // Preload critical CSS
+  { rel: 'preload', href: tailwindReset, as: 'style' },
+  { rel: 'preload', href: globalStyles, as: 'style' },
+
+  // Regular stylesheets
   { rel: 'stylesheet', href: reactToastifyStyles },
   { rel: 'stylesheet', href: tailwindReset },
   { rel: 'stylesheet', href: globalStyles },
   { rel: 'stylesheet', href: xtermStyles },
+
+  // DNS prefetch for faster font loading
+  {
+    rel: 'dns-prefetch',
+    href: 'https://fonts.googleapis.com',
+  },
   {
     rel: 'preconnect',
     href: 'https://fonts.googleapis.com',
@@ -44,6 +56,10 @@ export const links: LinksFunction = () => [
   {
     rel: 'stylesheet',
     href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+
+    // Non-blocking font load
+    media: 'print',
+    onLoad: "this.media='all'",
   },
 ];
 

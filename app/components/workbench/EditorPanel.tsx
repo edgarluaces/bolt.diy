@@ -98,20 +98,11 @@ export const EditorPanel = memo(
                         >
                           Files
                         </Tabs.Trigger>
-                        <Tabs.Trigger
-                          value="search"
-                          className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
-                          )}
-                        >
+                        {/* Hidden tabs - keep functionality but hide UI */}
+                        <Tabs.Trigger value="search" className="hidden">
                           Search
                         </Tabs.Trigger>
-                        <Tabs.Trigger
-                          value="locks"
-                          className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
-                          )}
-                        >
+                        <Tabs.Trigger value="locks" className="hidden">
                           Locks
                         </Tabs.Trigger>
                       </Tabs.List>

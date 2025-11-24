@@ -18,6 +18,9 @@ export default defineConfig((config) => {
     },
     build: {
       target: 'esnext',
+      cssCodeSplit: true,
+      minify: 'esbuild',
+      chunkSizeWarningLimit: 1000,
     },
     plugins: [
       nodePolyfills({

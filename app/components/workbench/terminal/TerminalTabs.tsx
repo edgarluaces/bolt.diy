@@ -23,8 +23,8 @@ export const TerminalTabs = memo(() => {
   const terminalPanelRef = useRef<ImperativePanelHandle>(null);
   const terminalToggledByShortcut = useRef(false);
 
-  const [activeTerminal, setActiveTerminal] = useState(0);
-  const [terminalCount, setTerminalCount] = useState(0);
+  const [activeTerminal, setActiveTerminal] = useState(1);
+  const [terminalCount, setTerminalCount] = useState(1);
 
   const addTerminal = () => {
     if (terminalCount < MAX_TERMINALS) {
@@ -136,53 +136,45 @@ export const TerminalTabs = memo(() => {
             {Array.from({ length: terminalCount + 1 }, (_, index) => {
               const isActive = activeTerminal === index;
 
+              // Skip rendering Bolt Terminal tab (index 0) - keep it hidden but functional
+              if (index === 0) {
+                return null;
+              }
+
               return (
                 <React.Fragment key={index}>
-                  {index == 0 ? (
-                    <button
-                      key={index}
-                      className={classNames(
-                        'flex items-center text-sm cursor-pointer gap-1.5 px-3 py-2 h-full whitespace-nowrap rounded-full',
-                        {
-                          'bg-bolt-elements-terminals-buttonBackground text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary':
-                            isActive,
-                          'bg-bolt-elements-background-depth-2 text-bolt-elements-textSecondary hover:bg-bolt-elements-terminals-buttonBackground':
-                            !isActive,
-                        },
-                      )}
-                      onClick={() => setActiveTerminal(index)}
+                  <button
+                    key={index}
+                    className={classNames(
+                      'flex items-center text-sm cursor-pointer gap-1.5 px-3 py-2 h-full whitespace-nowrap rounded-full',
+                      {
+                        'bg-bolt-elements-terminals-buttonBackground text-bolt-elements-textPrimary': isActive,
+                        'bg-bolt-elements-background-depth-2 text-bolt-elements-textSecondary hover:bg-bolt-elements-terminals-buttonBackground':
+                          !isActive,
+                      },
+                    )}
+                    onClick={() => setActiveTerminal(index)}
+                  >
+                    <div className="i-ph:terminal-window-duotone text-lg" />
+                    Terminal {terminalCount > 1 ? index : ''}
+                    <div
+                      className="bg-transparent text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary hover:bg-transparent rounded cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeTerminal(index);
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.stopPropagation();
+                          closeTerminal(index);
+                        }
+                      }}
                     >
-                      <div className="i-ph:terminal-window-duotone text-lg" />
-                      Bolt Terminal
-                    </button>
-                  ) : (
-                    <React.Fragment>
-                      <button
-                        key={index}
-                        className={classNames(
-                          'flex items-center text-sm cursor-pointer gap-1.5 px-3 py-2 h-full whitespace-nowrap rounded-full',
-                          {
-                            'bg-bolt-elements-terminals-buttonBackground text-bolt-elements-textPrimary': isActive,
-                            'bg-bolt-elements-background-depth-2 text-bolt-elements-textSecondary hover:bg-bolt-elements-terminals-buttonBackground':
-                              !isActive,
-                          },
-                        )}
-                        onClick={() => setActiveTerminal(index)}
-                      >
-                        <div className="i-ph:terminal-window-duotone text-lg" />
-                        Terminal {terminalCount > 1 && index}
-                        <button
-                          className="bg-transparent text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary hover:bg-transparent rounded"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            closeTerminal(index);
-                          }}
-                        >
-                          <div className="i-ph:x text-xs" />
-                        </button>
-                      </button>
-                    </React.Fragment>
-                  )}
+                      <div className="i-ph:x text-xs" />
+                    </div>
+                  </button>
                 </React.Fragment>
               );
             })}

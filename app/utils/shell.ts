@@ -237,8 +237,11 @@ export class BoltShell {
       await state.executionPrms;
     }
 
-    //start a new execution
-    this.terminal.input(command.trim() + '\n');
+    // Normalize possible HTML-escaped operators (e.g., &amp;&amp;)
+    command = decodeHtmlEntities(command).trim();
+
+    //start a new execution in the interactive shell
+    this.terminal.input(command + '\n');
 
     //wait for the execution to finish
     const executionPromise = this.getCurrentExecutionResult();
@@ -256,6 +259,114 @@ export class BoltShell {
     }
 
     return resp;
+  }
+
+  /**
+   * Execute a command in an isolated non-interactive shell process.
+   * This avoids relying on the interactive prompt OSC and prevents hangs.
+   * The command output is mirrored to the visible terminal to preserve UX.
+   */
+  async executeEphemeral(command: string, opts?: { inactivityMs?: number }): Promise<ExecutionResult> {
+    if (!this.#webcontainer || !this.#terminal) {
+      return undefined;
+    }
+
+    command = decodeHtmlEntities(command).trim();
+
+    const inactivityMs = Math.max(3000, opts?.inactivityMs ?? 30000);
+
+    // Spawn a fresh jsh with --osc -c "command"
+    const proc = await this.#webcontainer.spawn('/bin/jsh', ['--osc', '-c', command], {
+      terminal: {
+        cols: this.#terminal.cols ?? 80,
+        rows: this.#terminal.rows ?? 15,
+      },
+    });
+
+    const reader = proc.output.getReader();
+    let fullOutput = '';
+    let exitCode = 0;
+    let inactive = false;
+    let hasExitCode = false;
+    let lastOutputTime = Date.now();
+    let progressDots = 0;
+
+    // Show progress feedback for long-running commands every 10 seconds
+    const progressInterval = setInterval(() => {
+      const timeSinceLastOutput = Date.now() - lastOutputTime;
+
+      if (timeSinceLastOutput > 10000 && !hasExitCode && this.#terminal) {
+        progressDots = (progressDots + 1) % 4;
+
+        const dots = '.'.repeat(progressDots) + ' '.repeat(3 - progressDots);
+        this.#terminal.write(`\r\x1b[K\x1b[2m[Procesando${dots}]\x1b[0m`);
+      }
+    }, 2000);
+
+    try {
+      while (true) {
+        const readPromise = reader.read();
+        const timeoutPromise = new Promise<{ value?: string; done?: boolean }>((resolve) => {
+          const id = setTimeout(() => {
+            resolve({ value: undefined, done: false });
+          }, inactivityMs);
+
+          // Clear timeout when the read resolves
+          readPromise.finally(() => clearTimeout(id));
+        });
+
+        const { value, done } = (await Promise.race([readPromise, timeoutPromise])) as {
+          value?: string;
+          done?: boolean;
+        };
+
+        // Only mark as inactive if we haven't received an exit code yet
+        if (value === undefined && done === false && !hasExitCode) {
+          inactive = true;
+          break;
+        }
+
+        if (done) {
+          break;
+        }
+
+        const chunk = value || '';
+
+        if (chunk) {
+          lastOutputTime = Date.now();
+        }
+
+        fullOutput += chunk;
+
+        // Mirror to UI terminal for continuity
+        this.#terminal.write(chunk);
+
+        // Detect OSC exit code if present and stop reading immediately
+        const [, osc, , , code] = chunk.match(/\x1b\]654;([^\x07=]+)=?((-?\d+):(\d+))?\x07/) || [];
+
+        if (osc === 'exit' && code) {
+          exitCode = parseInt(code, 10);
+          hasExitCode = true;
+          break; // command finished; avoid waiting for more data
+        }
+      }
+    } finally {
+      clearInterval(progressInterval);
+    }
+
+    try {
+      await proc.kill();
+    } catch {}
+
+    if (inactive) {
+      const note = `\n[bolt] No se detectó actividad en ${inactivityMs}ms, cancelando ejecución efímera.\n`;
+      fullOutput += note;
+      this.#terminal.write(note);
+
+      return { output: fullOutput, exitCode: 124 };
+    }
+
+    return { output: fullOutput, exitCode };
   }
 
   async getCurrentExecutionResult(): Promise<ExecutionResult> {
@@ -318,6 +429,15 @@ export class BoltShell {
 
     return { output: fullOutput, exitCode };
   }
+}
+
+function decodeHtmlEntities(input: string): string {
+  return input
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
 }
 
 /**

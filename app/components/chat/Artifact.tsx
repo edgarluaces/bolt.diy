@@ -194,6 +194,65 @@ export function openArtifactInWorkbench(filePath: any) {
 }
 
 const ActionList = memo(({ actions }: ActionListProps) => {
+  // Track elapsed time when a start or shell action is running
+  const [elapsed, setElapsed] = useState<Record<number, number>>({});
+
+  // Track command progress info (packages count, current package, etc)
+  const [commandInfo, setCommandInfo] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    const runningActions = actions
+      .map((a, idx) => ({ action: a, index: idx }))
+      .filter(({ action }) => (action.type === 'start' || action.type === 'shell') && action.status === 'running');
+
+    if (runningActions.length === 0) {
+      setElapsed({});
+      setCommandInfo({});
+
+      return undefined;
+    }
+
+    const intervals: NodeJS.Timeout[] = [];
+    const startTimes: Record<number, number> = {};
+
+    runningActions.forEach(({ action, index }) => {
+      startTimes[index] = Date.now();
+
+      // Parse command info from npm install output
+      if (action.type === 'shell' && action.content?.includes('npm install')) {
+        const infoMessages = [
+          'Descargando dependencias...',
+          'Instalando paquetes...',
+          'Verificando integridad...',
+          'Construyendo dependencias...',
+          'Finalizando instalación...',
+        ];
+
+        let messageIndex = 0;
+        const infoId = setInterval(() => {
+          messageIndex = (messageIndex + 1) % infoMessages.length;
+          setCommandInfo((prev) => ({
+            ...prev,
+            [index]: infoMessages[messageIndex],
+          }));
+        }, 3000); // Change message every 3 seconds
+        intervals.push(infoId);
+      }
+
+      const id = setInterval(() => {
+        setElapsed((prev) => ({
+          ...prev,
+          [index]: Math.floor((Date.now() - startTimes[index]) / 1000),
+        }));
+      }, 1000);
+      intervals.push(id);
+    });
+
+    return () => {
+      intervals.forEach((id) => clearInterval(id));
+    };
+  }, [actions]);
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
       <ul className="list-none space-y-2.5">
@@ -242,27 +301,65 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   </div>
                 ) : type === 'shell' ? (
                   <div className="flex items-center w-full min-h-[28px]">
-                    <span className="flex-1">Run command</span>
+                    <span className="flex-1">
+                      {status === 'running'
+                        ? `Ejecutando comando… ${elapsed[index] || 0}s`
+                        : status === 'complete'
+                          ? 'Comando completado'
+                          : 'Run command'}
+                    </span>
                   </div>
                 ) : type === 'start' ? (
-                  <a
-                    onClick={(e) => {
-                      e.preventDefault();
-                      workbenchStore.currentView.set('preview');
-                    }}
-                    className="flex items-center w-full min-h-[28px]"
-                  >
-                    <span className="flex-1">Start Application</span>
-                  </a>
+                  <div className="flex items-center w-full min-h-[28px] gap-2">
+                    <span className="flex-1">
+                      {status === 'running' ? `Starting dev server… ${elapsed[index] || 0}s` : 'Dev server started'}
+                    </span>
+                    <button
+                      className="px-2 py-1 rounded-md bg-bolt-elements-item-contentAccent text-white text-xs hover:opacity-90"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        workbenchStore.currentView.set('preview');
+                      }}
+                    >
+                      Open Preview
+                    </button>
+                  </div>
                 ) : null}
               </div>
               {(type === 'shell' || type === 'start') && (
-                <ShellCodeBlock
-                  classsName={classNames('mt-1', {
-                    'mb-3.5': !isLast,
-                  })}
-                  code={content}
-                />
+                <>
+                  <ShellCodeBlock classsName={classNames('mt-1')} code={content} />
+                  {type === 'shell' && status === 'running' && (
+                    <div className="mt-2 mb-3.5 px-3 py-2.5 bg-bolt-elements-background-depth-1 rounded-md border border-bolt-elements-borderColor">
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="flex items-center gap-1.5 text-bolt-elements-textSecondary">
+                          <div className="i-svg-spinners:3-dots-fade text-sm"></div>
+                          <span>{commandInfo[index] || 'Ejecutando...'}</span>
+                        </span>
+                        <span className="font-mono text-bolt-elements-textTertiary">{elapsed[index] || 0}s</span>
+                      </div>
+                      <div className="w-full bg-bolt-elements-background-depth-2 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full"
+                          style={{
+                            width: '100%',
+                            animation: 'progress-indeterminate 1.5s ease-in-out infinite',
+                          }}
+                        />
+                      </div>
+                      <style>{`
+                        @keyframes progress-indeterminate {
+                          0% { transform: translateX(-100%); }
+                          50% { transform: translateX(0%); }
+                          100% { transform: translateX(100%); }
+                        }
+                      `}</style>
+                    </div>
+                  )}
+                  {(type === 'start' || (type === 'shell' && status !== 'running')) && !isLast && (
+                    <div className="mb-3.5" />
+                  )}
+                </>
               )}
             </motion.li>
           );

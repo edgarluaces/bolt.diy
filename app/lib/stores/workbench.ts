@@ -457,6 +457,44 @@ export class WorkbenchStore {
     }
   }
 
+  /**
+   * Reset the entire workbench state to start fresh
+   * Used when starting a new conversation
+   */
+  async reset() {
+    console.log('Starting workbench reset...');
+
+    /*
+     * First priority: Clear workspace - removes all files from WebContainer
+     * This must happen FIRST to prevent file watchers from detecting old files
+     */
+    await this.#filesStore.clearWorkspace();
+
+    // Clear artifacts
+    this.artifacts.set({});
+    this.artifactIdList = [];
+
+    // Reset workbench UI state
+    this.showWorkbench.set(false);
+    this.currentView.set('code');
+    this.unsavedFiles.set(new Set<string>());
+    this.modifiedFiles.clear();
+
+    // Clear alerts
+    this.actionAlert.set(undefined);
+    this.supabaseAlert.set(undefined);
+    this.deployAlert.set(undefined);
+
+    // Reset editor
+    this.#editorStore.setSelectedFile(undefined);
+    this.#editorStore.setDocuments({});
+
+    // Clear reloaded messages
+    this.#reloadedMessages.clear();
+
+    console.log('Workbench state reset complete');
+  }
+
   abortAllActions() {
     // TODO: what do we wanna do and how do we wanna recover from this?
   }

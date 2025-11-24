@@ -335,8 +335,15 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               // Enhanced error handling for common streaming issues
               if (error.message?.includes('Invalid JSON response')) {
                 logger.error('Invalid JSON response detected - likely malformed API response');
-              } else if (error.message?.includes('token')) {
+              } else if (error.message?.includes('token') || error.message?.includes('MAX_TOKENS')) {
                 logger.error('Token-related error detected - possible token limit exceeded');
+
+                // Specifically handle Gemini MAX_TOKENS validation error
+                if (error.message?.includes('Type validation failed') && error.message?.includes('parts')) {
+                  logger.warn('Gemini reached MAX_TOKENS with reasoning - response may be incomplete');
+
+                  // Let the onFinish handler deal with continuation
+                }
               }
 
               return;
@@ -437,6 +444,42 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       isRetryable: error.isRetryable !== false, // Default to retryable unless explicitly false
       provider: error.provider || 'unknown',
     };
+
+    // Handle Gemini MAX_TOKENS validation error
+    if (error.message?.includes('Type validation failed') && error.message?.includes('MAX_TOKENS')) {
+      return new Response(
+        JSON.stringify({
+          ...errorResponse,
+          message:
+            'La respuesta alcanzó el límite de tokens. Por favor, intenta dividir tu solicitud en partes más pequeñas o usa un modelo con mayor capacidad.',
+          statusCode: 429,
+          isRetryable: true,
+        }),
+        {
+          status: 429,
+          headers: { 'Content-Type': 'application/json' },
+          statusText: 'Token Limit Exceeded',
+        },
+      );
+    }
+
+    // Handle general validation errors from Gemini
+    if (error.message?.includes('Type validation failed') && error.message?.includes('candidates')) {
+      return new Response(
+        JSON.stringify({
+          ...errorResponse,
+          message:
+            'Error de validación en la respuesta del modelo. Por favor, intenta de nuevo o cambia a otro modelo.',
+          statusCode: 500,
+          isRetryable: true,
+        }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+          statusText: 'Validation Error',
+        },
+      );
+    }
 
     if (error.message?.includes('API key')) {
       return new Response(

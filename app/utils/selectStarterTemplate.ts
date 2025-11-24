@@ -3,6 +3,7 @@ import type { ProviderInfo } from '~/types/model';
 import type { Template } from '~/types/template';
 import { STARTER_TEMPLATES } from './constants';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const starterTemplateSelectionPrompt = (templates: Template[]) => `
 You are an experienced developer who helps people choose the best starter template for their projects.
 IMPORTANT: Vite is preferred
@@ -63,8 +64,10 @@ Important: Provide only the selection tags in your response, no additional text.
 MOST IMPORTANT: YOU DONT HAVE TIME TO THINK JUST START RESPONDING BASED ON HUNCH 
 `;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const templates: Template[] = STARTER_TEMPLATES.filter((t) => !t.name.includes('shadcn'));
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const parseSelectedTemplate = (llmOutput: string): { template: string; title: string } | null => {
   try {
     // Extract content between <templateName> tags
@@ -82,34 +85,51 @@ const parseSelectedTemplate = (llmOutput: string): { template: string; title: st
   }
 };
 
-export const selectStarterTemplate = async (options: { message: string; model: string; provider: ProviderInfo }) => {
-  const { message, model, provider } = options;
-  const requestBody = {
-    message,
-    model,
-    provider,
-    system: starterTemplateSelectionPrompt(templates),
+export const selectStarterTemplate = async (
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  options: { message: string; model: string; provider: ProviderInfo },
+) => {
+  /*
+   * FORCE BLANK TEMPLATE - User wants empty files directory
+   * No automatic template selection, no GitHub downloads
+   */
+  console.log('🚨 FORCING BLANK TEMPLATE - Files directory will start empty');
+
+  return {
+    template: 'blank',
+    title: '',
   };
-  const response = await fetch('/api/llmcall', {
-    method: 'POST',
-    body: JSON.stringify(requestBody),
-  });
-  const respJson: { text: string } = await response.json();
-  console.log(respJson);
 
-  const { text } = respJson;
-  const selectedTemplate = parseSelectedTemplate(text);
-
-  if (selectedTemplate) {
-    return selectedTemplate;
-  } else {
-    console.log('No template selected, using blank template');
-
-    return {
-      template: 'blank',
-      title: '',
-    };
-  }
+  // OLD CODE DISABLED - was downloading templates automatically
+  /*
+   *const { message, model, provider } = options;
+   *const requestBody = {
+   *  message,
+   *  model,
+   *  provider,
+   *  system: starterTemplateSelectionPrompt(templates),
+   *};
+   *const response = await fetch('/api/llmcall', {
+   *  method: 'POST',
+   *  body: JSON.stringify(requestBody),
+   *});
+   *const respJson: { text: string } = await response.json();
+   *console.log(respJson);
+   *
+   *const { text } = respJson;
+   *const selectedTemplate = parseSelectedTemplate(text);
+   *
+   *if (selectedTemplate) {
+   *  return selectedTemplate;
+   *} else {
+   *  console.log('No template selected, using blank template');
+   *
+   *  return {
+   *    template: 'blank',
+   *    title: '',
+   *  };
+   *}
+   */
 };
 
 const getGitHubRepoContent = async (repoName: string): Promise<{ name: string; path: string; content: string }[]> => {
