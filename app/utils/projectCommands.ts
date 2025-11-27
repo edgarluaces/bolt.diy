@@ -88,7 +88,7 @@ export async function detectProjectCommands(files: FileContent[]): Promise<Proje
           type: 'Node.js',
           setupCommand,
           startCommand: `npm run ${availableCommand}`,
-          followupMessage: `Found "${availableCommand}" script in package.json. Running "npm run ${availableCommand}" after installation.`,
+          followupMessage: `Found "${availableCommand}" script. Installing dependencies and launching in parallel (~30s)...`,
         };
       }
 
@@ -122,12 +122,14 @@ export function createCommandsMessage(commands: ProjectCommands): Message | null
 
   let commandString = '';
 
-  if (commands.setupCommand) {
+  // Combine setup and start commands into a single shell action for faster, parallel execution
+  if (commands.setupCommand && commands.startCommand) {
+    commandString += `
+<boltAction type="shell">${commands.setupCommand} && ${commands.startCommand}</boltAction>`;
+  } else if (commands.setupCommand) {
     commandString += `
 <boltAction type="shell">${commands.setupCommand}</boltAction>`;
-  }
-
-  if (commands.startCommand) {
+  } else if (commands.startCommand) {
     commandString += `
 <boltAction type="start">${commands.startCommand}</boltAction>
 `;
