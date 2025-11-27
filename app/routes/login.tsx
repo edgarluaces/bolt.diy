@@ -6,7 +6,7 @@ import { login, register } from '~/lib/stores/auth';
 import BackgroundRays from '~/components/ui/BackgroundRays';
 
 export const meta: MetaFunction = () => {
-  return [{ title: 'Iniciar Sesión - Bolt' }, { name: 'description', content: 'Inicia sesión en Bolt.diy' }];
+  return [{ title: 'Iniciar Sesión - FlashWeb' }, { name: 'description', content: 'Inicia sesión en FlashWeb' }];
 };
 
 export const loader = () => json({});
@@ -71,8 +71,8 @@ export default function Login() {
               </h1>
               <p className="text-sm text-bolt-elements-textSecondary">
                 {mode === 'login'
-                  ? 'Accede a tu espacio personal en Bolt.diy'
-                  : 'Crea tu cuenta y comienza a usar Bolt.diy'}
+                  ? 'Accede a tu espacio personal en FlashWeb'
+                  : 'Crea tu cuenta y comienza a usar FlashWeb'}
               </p>
             </div>
 

@@ -6,6 +6,7 @@ import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 import type { ActionCallbackData } from './message-parser';
 import type { BoltShell } from '~/utils/shell';
+import { validateCodeSyntax, autoFixCommonIssues } from './code-validator';
 
 const logger = createScopedLogger('ActionRunner');
 
@@ -474,7 +475,36 @@ export class ActionRunner {
     }
 
     try {
-      await webcontainer.fs.writeFile(relativePath, action.content);
+      // Validate code syntax before writing
+      const validation = validateCodeSyntax(action.content, relativePath);
+
+      // Log warnings if any
+      if (validation.warnings.length > 0) {
+        logger.warn(`⚠️  Syntax warnings for ${relativePath}:`);
+        validation.warnings.forEach((warning) => logger.warn(`  - ${warning}`));
+      }
+
+      // Auto-fix common issues if validation failed
+      let contentToWrite = action.content;
+
+      if (!validation.isValid) {
+        logger.error(`❌ Syntax errors detected in ${relativePath}:`);
+        validation.errors.forEach((error) => logger.error(`  - ${error}`));
+        logger.info('🔧 Attempting to auto-fix common issues...');
+
+        contentToWrite = autoFixCommonIssues(action.content, relativePath);
+
+        const revalidation = validateCodeSyntax(contentToWrite, relativePath);
+
+        if (!revalidation.isValid) {
+          logger.error('❌ Auto-fix failed, writing original content. This may cause preview errors.');
+          contentToWrite = action.content;
+        } else {
+          logger.info('✅ Auto-fix successful!');
+        }
+      }
+
+      await webcontainer.fs.writeFile(relativePath, contentToWrite);
       logger.debug(`File written ${relativePath}`);
     } catch (error) {
       logger.error('Failed to write file\n\n', error);

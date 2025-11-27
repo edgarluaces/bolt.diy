@@ -3,6 +3,7 @@ import { useStore } from '@nanostores/react';
 import { themeStore, toggleTheme } from '~/lib/stores/theme';
 import { isAuthenticatedStore, userStore, logout } from '~/lib/stores/auth';
 import { useState } from 'react';
+import { preloadChatModule } from '~/utils/preloaders';
 
 export function SharedHeader() {
   const theme = useStore(themeStore);
@@ -46,7 +47,7 @@ export function SharedHeader() {
       {/* Botón Inicio - Izquierda */}
       <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition">
         <span className="i-ph:sparkle-duotone text-bolt-elements-item-contentAccent text-2xl" />
-        <h1 className="text-xl font-bold text-bolt-elements-textPrimary">Bolt.diy</h1>
+        <h1 className="text-xl font-bold text-bolt-elements-textPrimary">FlashWeb</h1>
       </Link>
 
       {/* Centro - Dashboard y Mi Espacio Personal */}
@@ -54,6 +55,9 @@ export function SharedHeader() {
         <div className="flex items-center gap-6">
           <Link
             to="/app"
+            prefetch="intent"
+            onMouseEnter={() => preloadChatModule()}
+            onFocus={() => preloadChatModule()}
             className="text-bolt-elements-textPrimary hover:text-bolt-elements-item-contentAccent transition font-bold"
           >
             Dashboard
