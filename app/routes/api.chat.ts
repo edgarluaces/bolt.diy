@@ -41,10 +41,13 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 
 async function chatAction({ context, request }: ActionFunctionArgs) {
   const streamRecovery = new StreamRecoveryManager({
-    timeout: 45000,
-    maxRetries: 2,
+    timeout: 120000, // 2 minutes - longer timeout for complex file generation
+    maxRetries: 3,
     onTimeout: () => {
-      logger.warn('Stream timeout - attempting recovery');
+      logger.warn('⚠️  Stream timeout detected - attempting recovery (this is normal for large projects)');
+    },
+    onRecovery: () => {
+      logger.info('✅ Stream recovered successfully');
     },
   });
 
@@ -390,6 +393,9 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     }).pipeThrough(
       new TransformStream({
         transform: (chunk, controller) => {
+          // Update stream recovery activity on every chunk
+          streamRecovery.updateActivity();
+
           if (!lastChunk) {
             lastChunk = ' ';
           }
