@@ -285,13 +285,13 @@ export class ActionRunner {
       action.content,
     );
 
-    // Reduced timeout to 30s - with minimal deps and optimized flags, install should be very fast
-    const inactivityTimeout = isInstallCommand || isCompoundWithDev ? 30000 : 20000; // 30s for installs/dev, 20s for others
+    // Reduced timeout to 90s - with minimal deps and optimized flags, install should be much faster
+    const inactivityTimeout = isInstallCommand || isCompoundWithDev ? 90000 : 45000; // 1.5min for installs/dev, 45s for others
 
     // Show initial feedback for install commands
-    if (isInstallCommand || isCompoundWithDev) {
-      shell.terminal?.write('\r\n\x1b[1;36m[FlashWeb]\x1b[0m Instalando y ejecutando (optimizado ~30s)...\r\n');
-      shell.terminal?.write('\x1b[2m(Dependencias mínimas + ejecución paralela)\x1b[0m\r\n\r\n');
+    if (isInstallCommand) {
+      shell.terminal?.write('\r\n\x1b[1;36m[Bolt]\x1b[0m Instalando dependencias (optimizado)...\r\n');
+      shell.terminal?.write('\x1b[2m(Con dependencias mínimas esto debería ser rápido)\x1b[0m\r\n\r\n');
     }
 
     while (attempt <= maxRetries) {

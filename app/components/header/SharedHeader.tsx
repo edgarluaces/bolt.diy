@@ -3,7 +3,7 @@ import { useStore } from '@nanostores/react';
 import { themeStore, toggleTheme } from '~/lib/stores/theme';
 import { isAuthenticatedStore, userStore, logout } from '~/lib/stores/auth';
 import { useState } from 'react';
-import { preloadChatModule } from '~/utils/preloaders';
+import { preloadSpaceModule, preloadLoginModule, preloadDashboardModule } from '~/utils/preloaders';
 
 export function SharedHeader() {
   const theme = useStore(themeStore);
@@ -45,7 +45,7 @@ export function SharedHeader() {
   return (
     <header className="flex items-center justify-between px-6 py-4 border-b border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 z-50">
       {/* Botón Inicio - Izquierda */}
-      <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition">
+      <Link to="/" prefetch="intent" className="flex items-center gap-2 hover:opacity-80 transition">
         <span className="i-ph:sparkle-duotone text-bolt-elements-item-contentAccent text-2xl" />
         <h1 className="text-xl font-bold text-bolt-elements-textPrimary">FlashWeb</h1>
       </Link>
@@ -56,14 +56,17 @@ export function SharedHeader() {
           <Link
             to="/app"
             prefetch="intent"
-            onMouseEnter={() => preloadChatModule()}
-            onFocus={() => preloadChatModule()}
+            onMouseEnter={() => preloadDashboardModule()}
+            onFocus={() => preloadDashboardModule()}
             className="text-bolt-elements-textPrimary hover:text-bolt-elements-item-contentAccent transition font-bold"
           >
             Dashboard
           </Link>
           <Link
             to="/space"
+            prefetch="intent"
+            onMouseEnter={() => preloadSpaceModule()}
+            onFocus={() => preloadSpaceModule()}
             className="text-bolt-elements-textPrimary hover:text-bolt-elements-item-contentAccent transition font-bold"
           >
             Mi Espacio Personal
@@ -112,6 +115,8 @@ export function SharedHeader() {
                   </div>
                   <Link
                     to="/app"
+                    prefetch="intent"
+                    onMouseEnter={() => preloadDashboardModule()}
                     className="flex items-center gap-2 px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-3 transition"
                     onClick={() => setShowUserMenu(false)}
                   >
@@ -120,6 +125,8 @@ export function SharedHeader() {
                   </Link>
                   <Link
                     to="/space"
+                    prefetch="intent"
+                    onMouseEnter={() => preloadSpaceModule()}
                     className="flex items-center gap-2 px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-3 transition"
                     onClick={() => setShowUserMenu(false)}
                   >
@@ -140,6 +147,9 @@ export function SharedHeader() {
         ) : (
           <Link
             to="/login"
+            prefetch="intent"
+            onMouseEnter={() => preloadLoginModule()}
+            onFocus={() => preloadLoginModule()}
             className="flex items-center justify-center w-10 h-10 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-3 hover:bg-bolt-elements-background-depth-4 transition"
             aria-label="Iniciar sesión"
             title="Iniciar sesión"
