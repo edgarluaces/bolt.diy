@@ -34,15 +34,20 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
   const artifacts = useStore(workbenchStore.artifacts);
   const artifact = artifacts[artifactId];
 
-  const actions = useStore(
+  // Store actions with their IDs for stable React keys
+  const actionsWithIds = useStore(
     computed(artifact.runner.actions, (actions) => {
-      // Filter out Supabase actions except for migrations
-      return Object.values(actions).filter((action) => {
-        // Exclude actions with type 'supabase' or actions that contain 'supabase' in their content
-        return action.type !== 'supabase' && !(action.type === 'shell' && action.content?.includes('supabase'));
-      });
+      // Filter out Supabase actions except for migrations, preserving IDs
+      return Object.entries(actions)
+        .filter(([, action]) => {
+          // Exclude actions with type 'supabase' or actions that contain 'supabase' in their content
+          return action.type !== 'supabase' && !(action.type === 'shell' && action.content?.includes('supabase'));
+        })
+        .map(([id, action]) => ({ id, action }));
     }),
   );
+
+  const actions = actionsWithIds.map(({ action }) => action);
 
   const toggleActions = () => {
     userToggledActions.current = true;
@@ -147,7 +152,7 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
               <div className="bg-bolt-elements-artifacts-borderColor h-[1px]" />
 
               <div className="p-5 text-left bg-bolt-elements-actions-background">
-                <ActionList actions={actions} />
+                <ActionList actionsWithIds={actionsWithIds} />
               </div>
             </motion.div>
           )}
@@ -177,7 +182,7 @@ function ShellCodeBlock({ classsName, code }: ShellCodeBlockProps) {
 }
 
 interface ActionListProps {
-  actions: ActionState[];
+  actionsWithIds: Array<{ id: string; action: ActionState }>;
 }
 
 const actionVariants = {
@@ -193,17 +198,17 @@ export function openArtifactInWorkbench(filePath: any) {
   workbenchStore.setSelectedFile(`${WORK_DIR}/${filePath}`);
 }
 
-const ActionList = memo(({ actions }: ActionListProps) => {
-  // Track elapsed time when a start or shell action is running
-  const [elapsed, setElapsed] = useState<Record<number, number>>({});
+const ActionList = memo(({ actionsWithIds }: ActionListProps) => {
+  // Track elapsed time using stable IDs instead of indices
+  const [elapsed, setElapsed] = useState<Record<string, number>>({});
 
-  // Track command progress info (packages count, current package, etc)
-  const [commandInfo, setCommandInfo] = useState<Record<number, string>>({});
+  // Track command progress info using stable IDs
+  const [commandInfo, setCommandInfo] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    const runningActions = actions
-      .map((a, idx) => ({ action: a, index: idx }))
-      .filter(({ action }) => (action.type === 'start' || action.type === 'shell') && action.status === 'running');
+    const runningActions = actionsWithIds.filter(
+      ({ action }) => (action.type === 'start' || action.type === 'shell') && action.status === 'running',
+    );
 
     if (runningActions.length === 0) {
       setElapsed({});
@@ -213,10 +218,10 @@ const ActionList = memo(({ actions }: ActionListProps) => {
     }
 
     const intervals: NodeJS.Timeout[] = [];
-    const startTimes: Record<number, number> = {};
+    const startTimes: Record<string, number> = {};
 
-    runningActions.forEach(({ action, index }) => {
-      startTimes[index] = Date.now();
+    runningActions.forEach(({ id, action }) => {
+      startTimes[id] = Date.now();
 
       // Parse command info from npm install output
       if (action.type === 'shell' && action.content?.includes('npm install')) {
@@ -233,36 +238,36 @@ const ActionList = memo(({ actions }: ActionListProps) => {
           messageIndex = (messageIndex + 1) % infoMessages.length;
           setCommandInfo((prev) => ({
             ...prev,
-            [index]: infoMessages[messageIndex],
+            [id]: infoMessages[messageIndex],
           }));
         }, 3000); // Change message every 3 seconds
         intervals.push(infoId);
       }
 
-      const id = setInterval(() => {
+      const intervalId = setInterval(() => {
         setElapsed((prev) => ({
           ...prev,
-          [index]: Math.floor((Date.now() - startTimes[index]) / 1000),
+          [id]: Math.floor((Date.now() - startTimes[id]) / 1000),
         }));
       }, 1000);
-      intervals.push(id);
+      intervals.push(intervalId);
     });
 
     return () => {
       intervals.forEach((id) => clearInterval(id));
     };
-  }, [actions]);
+  }, [actionsWithIds]);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
       <ul className="list-none space-y-2.5">
-        {actions.map((action, index) => {
+        {actionsWithIds.map(({ id, action }, index) => {
           const { status, type, content } = action;
-          const isLast = index === actions.length - 1;
+          const isLast = index === actionsWithIds.length - 1;
 
           return (
             <motion.li
-              key={index}
+              key={id}
               variants={actionVariants}
               initial="hidden"
               animate="visible"
@@ -303,7 +308,7 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   <div className="flex items-center w-full min-h-[28px]">
                     <span className="flex-1">
                       {status === 'running'
-                        ? `Ejecutando comando… ${elapsed[index] || 0}s`
+                        ? `Ejecutando comando… ${elapsed[id] || 0}s`
                         : status === 'complete'
                           ? 'Comando completado'
                           : 'Run command'}
@@ -312,7 +317,7 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                 ) : type === 'start' ? (
                   <div className="flex items-center w-full min-h-[28px] gap-2">
                     <span className="flex-1">
-                      {status === 'running' ? `Starting dev server… ${elapsed[index] || 0}s` : 'Dev server started'}
+                      {status === 'running' ? `Starting dev server… ${elapsed[id] || 0}s` : 'Dev server started'}
                     </span>
                     <button
                       className="px-2 py-1 rounded-md bg-bolt-elements-item-contentAccent text-white text-xs hover:opacity-90"
@@ -334,9 +339,9 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                       <div className="flex items-center justify-between text-xs mb-1.5">
                         <span className="flex items-center gap-1.5 text-bolt-elements-textSecondary">
                           <div className="i-svg-spinners:3-dots-fade text-sm"></div>
-                          <span>{commandInfo[index] || 'Ejecutando...'}</span>
+                          <span>{commandInfo[id] || 'Ejecutando...'}</span>
                         </span>
-                        <span className="font-mono text-bolt-elements-textTertiary">{elapsed[index] || 0}s</span>
+                        <span className="font-mono text-bolt-elements-textTertiary">{elapsed[id] || 0}s</span>
                       </div>
                       <div className="w-full bg-bolt-elements-background-depth-2 rounded-full h-1.5 overflow-hidden">
                         <div
