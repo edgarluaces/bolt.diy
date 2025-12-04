@@ -122,14 +122,12 @@ export function createCommandsMessage(commands: ProjectCommands): Message | null
 
   let commandString = '';
 
-  // Combine setup and start commands into a single shell action for faster, parallel execution
-  if (commands.setupCommand && commands.startCommand) {
-    commandString += `
-<boltAction type="shell">${commands.setupCommand} && ${commands.startCommand}</boltAction>`;
-  } else if (commands.setupCommand) {
+  if (commands.setupCommand) {
     commandString += `
 <boltAction type="shell">${commands.setupCommand}</boltAction>`;
-  } else if (commands.startCommand) {
+  }
+
+  if (commands.startCommand) {
     commandString += `
 <boltAction type="start">${commands.startCommand}</boltAction>
 `;

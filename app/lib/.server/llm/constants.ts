@@ -11,22 +11,14 @@ export const MAX_TOKENS = 16384; // Increased from 8k to allow more complex resp
 export const PROVIDER_COMPLETION_LIMITS: Record<string, number> = {
   OpenAI: 4096, // Standard GPT models (o1 models have much higher limits)
   Github: 4096, // GitHub Models use OpenAI-compatible limits
-  Anthropic: 8192, // Reduced for simpler responses
   Google: 8192, // Reduced from 32k to prevent overload and force simplicity
-  Cohere: 4000,
   DeepSeek: 8192,
   Groq: 8192,
-  HuggingFace: 4096,
-  Mistral: 8192,
   Ollama: 8192,
-  OpenRouter: 8192,
   Perplexity: 8192,
-  Together: 8192,
-  xAI: 8192,
   LMStudio: 8192,
   OpenAILike: 8192,
-  AmazonBedrock: 8192,
-  Hyperbolic: 8192,
+  Moonshot: 8192,
 };
 
 /*
@@ -42,11 +34,8 @@ export function isReasoningModel(modelName: string): boolean {
   return result;
 }
 
-/*
- * limits the number of model responses that can be returned in a single request
- * Increased from 2 to 4 to support larger projects with many files
- */
-export const MAX_RESPONSE_SEGMENTS = 4;
+// limits the number of model responses that can be returned in a single request
+export const MAX_RESPONSE_SEGMENTS = 2;
 
 export interface File {
   type: 'file';

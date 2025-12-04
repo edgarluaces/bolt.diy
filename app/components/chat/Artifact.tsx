@@ -2,7 +2,6 @@ import { useStore } from '@nanostores/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { computed } from 'nanostores';
 import { memo, useEffect, useRef, useState } from 'react';
-import { useBatchedStore } from '~/hooks/useBatchedStore';
 import { createHighlighter, type BundledLanguage, type BundledTheme, type HighlighterGeneric } from 'shiki';
 import type { ActionState } from '~/lib/runtime/action-runner';
 import { workbenchStore } from '~/lib/stores/workbench';
@@ -35,24 +34,15 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
   const artifacts = useStore(workbenchStore.artifacts);
   const artifact = artifacts[artifactId];
 
-  /*
-   * Store actions with their IDs for stable React keys
-   * Use batched store to prevent overwhelming React with rapid updates during file generation
-   */
-  const actionsWithIds = useBatchedStore(
+  const actions = useStore(
     computed(artifact.runner.actions, (actions) => {
-      // Filter out Supabase actions except for migrations, preserving IDs
-      return Object.entries(actions)
-        .filter(([, action]) => {
-          // Exclude actions with type 'supabase' or actions that contain 'supabase' in their content
-          return action.type !== 'supabase' && !(action.type === 'shell' && action.content?.includes('supabase'));
-        })
-        .map(([id, action]) => ({ id, action }));
+      // Filter out Supabase actions except for migrations
+      return Object.values(actions).filter((action) => {
+        // Exclude actions with type 'supabase' or actions that contain 'supabase' in their content
+        return action.type !== 'supabase' && !(action.type === 'shell' && action.content?.includes('supabase'));
+      });
     }),
-    50, // 50ms batch delay - fast enough to feel instant, slow enough to prevent DOM thrashing
   );
-
-  const actions = actionsWithIds.map(({ action }) => action);
 
   const toggleActions = () => {
     userToggledActions.current = true;
@@ -157,7 +147,7 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
               <div className="bg-bolt-elements-artifacts-borderColor h-[1px]" />
 
               <div className="p-5 text-left bg-bolt-elements-actions-background">
-                <ActionList actionsWithIds={actionsWithIds} />
+                <ActionList actions={actions} />
               </div>
             </motion.div>
           )}
@@ -187,7 +177,7 @@ function ShellCodeBlock({ classsName, code }: ShellCodeBlockProps) {
 }
 
 interface ActionListProps {
-  actionsWithIds: Array<{ id: string; action: ActionState }>;
+  actions: ActionState[];
 }
 
 const actionVariants = {
@@ -203,212 +193,181 @@ export function openArtifactInWorkbench(filePath: any) {
   workbenchStore.setSelectedFile(`${WORK_DIR}/${filePath}`);
 }
 
-const ActionList = memo(
-  ({ actionsWithIds }: ActionListProps) => {
-    const [showAll, setShowAll] = useState(false);
-    const MAX_INITIAL_ACTIONS = 20; // Show max 20 actions initially to prevent DOM thrashing
+const ActionList = memo(({ actions }: ActionListProps) => {
+  // Track elapsed time when a start or shell action is running
+  const [elapsed, setElapsed] = useState<Record<number, number>>({});
 
-    // Only render most recent actions by default to improve performance
-    const visibleActions = showAll ? actionsWithIds : actionsWithIds.slice(-MAX_INITIAL_ACTIONS);
-    const hasMore = actionsWithIds.length > MAX_INITIAL_ACTIONS;
+  // Track command progress info (packages count, current package, etc)
+  const [commandInfo, setCommandInfo] = useState<Record<number, string>>({});
 
-    // Track elapsed time using stable IDs instead of indices
-    const [elapsed, setElapsed] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const runningActions = actions
+      .map((a, idx) => ({ action: a, index: idx }))
+      .filter(({ action }) => (action.type === 'start' || action.type === 'shell') && action.status === 'running');
 
-    // Track command progress info using stable IDs
-    const [commandInfo, setCommandInfo] = useState<Record<string, string>>({});
+    if (runningActions.length === 0) {
+      setElapsed({});
+      setCommandInfo({});
 
-    useEffect(() => {
-      const runningActions = actionsWithIds.filter(
-        ({ action }) => (action.type === 'start' || action.type === 'shell') && action.status === 'running',
-      );
+      return undefined;
+    }
 
-      if (runningActions.length === 0) {
-        setElapsed({});
-        setCommandInfo({});
+    const intervals: NodeJS.Timeout[] = [];
+    const startTimes: Record<number, number> = {};
 
-        return undefined;
+    runningActions.forEach(({ action, index }) => {
+      startTimes[index] = Date.now();
+
+      // Parse command info from npm install output
+      if (action.type === 'shell' && action.content?.includes('npm install')) {
+        const infoMessages = [
+          'Descargando dependencias...',
+          'Instalando paquetes...',
+          'Verificando integridad...',
+          'Construyendo dependencias...',
+          'Finalizando instalación...',
+        ];
+
+        let messageIndex = 0;
+        const infoId = setInterval(() => {
+          messageIndex = (messageIndex + 1) % infoMessages.length;
+          setCommandInfo((prev) => ({
+            ...prev,
+            [index]: infoMessages[messageIndex],
+          }));
+        }, 3000); // Change message every 3 seconds
+        intervals.push(infoId);
       }
 
-      const intervals: NodeJS.Timeout[] = [];
-      const startTimes: Record<string, number> = {};
+      const id = setInterval(() => {
+        setElapsed((prev) => ({
+          ...prev,
+          [index]: Math.floor((Date.now() - startTimes[index]) / 1000),
+        }));
+      }, 1000);
+      intervals.push(id);
+    });
 
-      runningActions.forEach(({ id, action }) => {
-        startTimes[id] = Date.now();
+    return () => {
+      intervals.forEach((id) => clearInterval(id));
+    };
+  }, [actions]);
 
-        // Parse command info from npm install output
-        if (action.type === 'shell' && action.content?.includes('npm install')) {
-          const infoMessages = [
-            'Descargando dependencias...',
-            'Instalando paquetes...',
-            'Verificando integridad...',
-            'Construyendo dependencias...',
-            'Finalizando instalación...',
-          ];
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+      <ul className="list-none space-y-2.5">
+        {actions.map((action, index) => {
+          const { status, type, content } = action;
+          const isLast = index === actions.length - 1;
 
-          let messageIndex = 0;
-          const infoId = setInterval(() => {
-            messageIndex = (messageIndex + 1) % infoMessages.length;
-            setCommandInfo((prev) => ({
-              ...prev,
-              [id]: infoMessages[messageIndex],
-            }));
-          }, 3000); // Change message every 3 seconds
-          intervals.push(infoId);
-        }
-
-        const intervalId = setInterval(() => {
-          setElapsed((prev) => ({
-            ...prev,
-            [id]: Math.floor((Date.now() - startTimes[id]) / 1000),
-          }));
-        }, 1000);
-        intervals.push(intervalId);
-      });
-
-      return () => {
-        intervals.forEach((id) => clearInterval(id));
-      };
-    }, [actionsWithIds]);
-
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.15 }}
-      >
-        {!showAll && hasMore && (
-          <button
-            onClick={() => setShowAll(true)}
-            className="mb-2 text-xs text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition"
-          >
-            + Show {actionsWithIds.length - MAX_INITIAL_ACTIONS} more actions
-          </button>
-        )}
-        <ul className="list-none space-y-2.5">
-          {visibleActions.map(({ id, action }, index) => {
-            const { status, type, content } = action;
-            const isLast = index === actionsWithIds.length - 1;
-
-            return (
-              <motion.li
-                key={id}
-                layoutId={id}
-                variants={actionVariants}
-                initial="hidden"
-                animate="visible"
-                transition={{
-                  duration: 0.2,
-                  ease: cubicEasingFn,
-                }}
-              >
-                <div className="flex items-center gap-1.5 text-sm">
-                  <div className={classNames('text-lg', getIconColor(action.status))}>
-                    {status === 'running' ? (
-                      <>
-                        {type !== 'start' ? (
-                          <div className="i-svg-spinners:90-ring-with-bg"></div>
-                        ) : (
-                          <div className="i-ph:terminal-window-duotone"></div>
-                        )}
-                      </>
-                    ) : status === 'pending' ? (
-                      <div className="i-ph:circle-duotone"></div>
-                    ) : status === 'complete' ? (
-                      <div className="i-ph:check"></div>
-                    ) : status === 'failed' || status === 'aborted' ? (
-                      <div className="i-ph:x"></div>
-                    ) : null}
-                  </div>
-                  {type === 'file' ? (
-                    <div>
-                      Create{' '}
-                      <code
-                        className="bg-bolt-elements-artifacts-inlineCode-background text-bolt-elements-artifacts-inlineCode-text px-1.5 py-1 rounded-md text-bolt-elements-item-contentAccent hover:underline cursor-pointer"
-                        onClick={() => openArtifactInWorkbench(action.filePath)}
-                      >
-                        {action.filePath}
-                      </code>
-                    </div>
-                  ) : type === 'shell' ? (
-                    <div className="flex items-center w-full min-h-[28px]">
-                      <span className="flex-1">
-                        {status === 'running'
-                          ? `Ejecutando comando… ${elapsed[id] || 0}s`
-                          : status === 'complete'
-                            ? 'Comando completado'
-                            : 'Run command'}
-                      </span>
-                    </div>
-                  ) : type === 'start' ? (
-                    <div className="flex items-center w-full min-h-[28px] gap-2">
-                      <span className="flex-1">
-                        {status === 'running' ? `Starting dev server… ${elapsed[id] || 0}s` : 'Dev server started'}
-                      </span>
-                      <button
-                        className="px-2 py-1 rounded-md bg-bolt-elements-item-contentAccent text-white text-xs hover:opacity-90"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          workbenchStore.currentView.set('preview');
-                        }}
-                      >
-                        Open Preview
-                      </button>
-                    </div>
+          return (
+            <motion.li
+              key={index}
+              variants={actionVariants}
+              initial="hidden"
+              animate="visible"
+              transition={{
+                duration: 0.2,
+                ease: cubicEasingFn,
+              }}
+            >
+              <div className="flex items-center gap-1.5 text-sm">
+                <div className={classNames('text-lg', getIconColor(action.status))}>
+                  {status === 'running' ? (
+                    <>
+                      {type !== 'start' ? (
+                        <div className="i-svg-spinners:90-ring-with-bg"></div>
+                      ) : (
+                        <div className="i-ph:terminal-window-duotone"></div>
+                      )}
+                    </>
+                  ) : status === 'pending' ? (
+                    <div className="i-ph:circle-duotone"></div>
+                  ) : status === 'complete' ? (
+                    <div className="i-ph:check"></div>
+                  ) : status === 'failed' || status === 'aborted' ? (
+                    <div className="i-ph:x"></div>
                   ) : null}
                 </div>
-                {(type === 'shell' || type === 'start') && (
-                  <>
-                    <ShellCodeBlock classsName={classNames('mt-1')} code={content} />
-                    {type === 'shell' && status === 'running' && (
-                      <div className="mt-2 mb-3.5 px-3 py-2.5 bg-bolt-elements-background-depth-1 rounded-md border border-bolt-elements-borderColor">
-                        <div className="flex items-center justify-between text-xs mb-1.5">
-                          <span className="flex items-center gap-1.5 text-bolt-elements-textSecondary">
-                            <div className="i-svg-spinners:3-dots-fade text-sm"></div>
-                            <span>{commandInfo[id] || 'Ejecutando...'}</span>
-                          </span>
-                          <span className="font-mono text-bolt-elements-textTertiary">{elapsed[id] || 0}s</span>
-                        </div>
-                        <div className="w-full bg-bolt-elements-background-depth-2 rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full"
-                            style={{
-                              width: '100%',
-                              animation: 'progress-indeterminate 1.5s ease-in-out infinite',
-                            }}
-                          />
-                        </div>
-                        <style>{`
+                {type === 'file' ? (
+                  <div>
+                    Create{' '}
+                    <code
+                      className="bg-bolt-elements-artifacts-inlineCode-background text-bolt-elements-artifacts-inlineCode-text px-1.5 py-1 rounded-md text-bolt-elements-item-contentAccent hover:underline cursor-pointer"
+                      onClick={() => openArtifactInWorkbench(action.filePath)}
+                    >
+                      {action.filePath}
+                    </code>
+                  </div>
+                ) : type === 'shell' ? (
+                  <div className="flex items-center w-full min-h-[28px]">
+                    <span className="flex-1">
+                      {status === 'running'
+                        ? `Ejecutando comando… ${elapsed[index] || 0}s`
+                        : status === 'complete'
+                          ? 'Comando completado'
+                          : 'Run command'}
+                    </span>
+                  </div>
+                ) : type === 'start' ? (
+                  <div className="flex items-center w-full min-h-[28px] gap-2">
+                    <span className="flex-1">
+                      {status === 'running' ? `Starting dev server… ${elapsed[index] || 0}s` : 'Dev server started'}
+                    </span>
+                    <button
+                      className="px-2 py-1 rounded-md bg-bolt-elements-item-contentAccent text-white text-xs hover:opacity-90"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        workbenchStore.currentView.set('preview');
+                      }}
+                    >
+                      Open Preview
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              {(type === 'shell' || type === 'start') && (
+                <>
+                  <ShellCodeBlock classsName={classNames('mt-1')} code={content} />
+                  {type === 'shell' && status === 'running' && (
+                    <div className="mt-2 mb-3.5 px-3 py-2.5 bg-bolt-elements-background-depth-1 rounded-md border border-bolt-elements-borderColor">
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="flex items-center gap-1.5 text-bolt-elements-textSecondary">
+                          <div className="i-svg-spinners:3-dots-fade text-sm"></div>
+                          <span>{commandInfo[index] || 'Ejecutando...'}</span>
+                        </span>
+                        <span className="font-mono text-bolt-elements-textTertiary">{elapsed[index] || 0}s</span>
+                      </div>
+                      <div className="w-full bg-bolt-elements-background-depth-2 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full"
+                          style={{
+                            width: '100%',
+                            animation: 'progress-indeterminate 1.5s ease-in-out infinite',
+                          }}
+                        />
+                      </div>
+                      <style>{`
                         @keyframes progress-indeterminate {
                           0% { transform: translateX(-100%); }
                           50% { transform: translateX(0%); }
                           100% { transform: translateX(100%); }
                         }
                       `}</style>
-                      </div>
-                    )}
-                    {(type === 'start' || (type === 'shell' && status !== 'running')) && !isLast && (
-                      <div className="mb-3.5" />
-                    )}
-                  </>
-                )}
-              </motion.li>
-            );
-          })}
-        </ul>
-      </motion.div>
-    );
-  },
-
-  // Custom comparator: only re-render if action IDs or statuses actually changed
-  (prevProps, nextProps) => {
-    const prevKeys = prevProps.actionsWithIds.map((a) => `${a.id}:${a.action.status}`).join('|');
-    const nextKeys = nextProps.actionsWithIds.map((a) => `${a.id}:${a.action.status}`).join('|');
-
-    return prevKeys === nextKeys; // Return true if they're the same (skip re-render)
-  },
-);
+                    </div>
+                  )}
+                  {(type === 'start' || (type === 'shell' && status !== 'running')) && !isLast && (
+                    <div className="mb-3.5" />
+                  )}
+                </>
+              )}
+            </motion.li>
+          );
+        })}
+      </ul>
+    </motion.div>
+  );
+});
 
 function getIconColor(status: ActionState['status']) {
   switch (status) {

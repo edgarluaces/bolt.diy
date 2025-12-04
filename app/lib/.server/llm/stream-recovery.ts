@@ -14,17 +14,13 @@ export class StreamRecoveryManager {
   private _timeoutHandle: NodeJS.Timeout | null = null;
   private _lastActivity: number = Date.now();
   private _isActive = true;
-  private _activityCount = 0;
 
   constructor(private _options: StreamRecoveryOptions = {}) {
     this._options = {
       maxRetries: 3,
-      timeout: 120000, // 120 seconds default (2 minutes) - increased for large file generation
+      timeout: 30000, // 30 seconds default
       ..._options,
     };
-    logger.debug(
-      `StreamRecoveryManager initialized with timeout: ${this._options.timeout}ms, maxRetries: ${this._options.maxRetries}`,
-    );
   }
 
   startMonitoring() {
@@ -33,25 +29,6 @@ export class StreamRecoveryManager {
 
   updateActivity() {
     this._lastActivity = Date.now();
-    this._activityCount++;
-
-    // Log activity every 500 chunks to reduce console spam and overhead
-    if (this._activityCount % 500 === 0) {
-      logger.debug(`Stream activity: ${this._activityCount} chunks processed, ${this._retryCount} retries so far`);
-    }
-
-    // Warn if processing an unusually high number of chunks (possible infinite loop)
-    if (this._activityCount === 2000) {
-      logger.warn(`⚠️  Stream has processed 2000+ chunks - possible infinite continuation loop detected`);
-    }
-
-    if (this._activityCount > 3000) {
-      logger.error(`🔴 Stream exceeded 3000 chunks - forcing stop to prevent infinite loop`);
-      this.stop();
-
-      return;
-    }
-
     this._resetTimeout();
   }
 
@@ -73,22 +50,15 @@ export class StreamRecoveryManager {
   }
 
   private _handleTimeout() {
-    const timeSinceActivity = Date.now() - this._lastActivity;
-    logger.warn(
-      `⏱️  Stream inactivity detected: ${Math.round(timeSinceActivity / 1000)}s since last activity (${this._activityCount} chunks total)`,
-    );
-
     if (this._retryCount >= (this._options.maxRetries || 3)) {
-      logger.error(
-        `❌ Max retries (${this._options.maxRetries}) reached for stream recovery. Total chunks processed: ${this._activityCount}`,
-      );
+      logger.error('Max retries reached for stream recovery');
       this.stop();
 
       return;
     }
 
     this._retryCount++;
-    logger.info(`🔄 Attempting stream recovery (attempt ${this._retryCount}/${this._options.maxRetries})`);
+    logger.info(`Attempting stream recovery (attempt ${this._retryCount})`);
 
     if (this._options.onTimeout) {
       this._options.onTimeout();
@@ -115,16 +85,8 @@ export class StreamRecoveryManager {
     return {
       isActive: this._isActive,
       retryCount: this._retryCount,
-      activityCount: this._activityCount,
       lastActivity: this._lastActivity,
       timeSinceLastActivity: Date.now() - this._lastActivity,
-      timeoutMs: this._options.timeout,
-      maxRetries: this._options.maxRetries,
     };
-  }
-
-  forceRecovery() {
-    logger.warn('🔧 Force recovery requested by user');
-    this._handleTimeout();
   }
 }

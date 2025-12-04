@@ -254,20 +254,16 @@ export class ImportExportService {
      * This matches how the application stores API keys in cookies
      */
     const template = {
-      Anthropic: '',
       OpenAI: '',
       Google: '',
       Groq: '',
-      HuggingFace: '',
-      OpenRouter: '',
       Deepseek: '',
-      Mistral: '',
       OpenAILike: '',
-      Together: '',
-      xAI: '',
       Perplexity: '',
-      Cohere: '',
-      AzureOpenAI: '',
+      Github: '',
+      Moonshot: '',
+      LMStudio: '',
+      Ollama: '',
     };
 
     // Add a comment to explain the format
