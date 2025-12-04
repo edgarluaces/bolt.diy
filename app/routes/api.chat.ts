@@ -40,8 +40,11 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 }
 
 async function chatAction({ context, request }: ActionFunctionArgs) {
-  const streamRecovery = new StreamRecoveryManager({
-    timeout: 120000, // 2 minutes - longer timeout for complex file generation
+  const startTime = Date.now();
+  const TOTAL_TIMEOUT = 300000; // 5 minutes total for all continuations combined
+
+  let streamRecovery = new StreamRecoveryManager({
+    timeout: 120000, // 2 minutes per stream segment
     maxRetries: 3,
     onTimeout: () => {
       logger.warn('⚠️  Stream timeout detected - attempting recovery (this is normal for large projects)');
@@ -252,13 +255,37 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               return;
             }
 
+            // Check total elapsed time across all continuations
+            const elapsedTime = Date.now() - startTime;
+
+            if (elapsedTime > TOTAL_TIMEOUT) {
+              logger.error(`⚠️  Total timeout exceeded (${Math.floor(elapsedTime / 1000)}s). Stopping continuations.`);
+              dataStream.writeData({
+                type: 'progress',
+                label: 'response',
+                status: 'complete',
+                order: progressCounter++,
+                message: 'Response truncated due to timeout',
+              } satisfies ProgressAnnotation);
+              streamRecovery.stop();
+
+              return;
+            }
+
             if (stream.switches >= MAX_RESPONSE_SEGMENTS) {
+              logger.error(`⚠️  Maximum response segments (${MAX_RESPONSE_SEGMENTS}) reached. Stopping.`);
               throw Error('Cannot continue message: Maximum segments reached');
             }
 
             const switchesLeft = MAX_RESPONSE_SEGMENTS - stream.switches;
 
-            logger.info(`Reached max token limit (${MAX_TOKENS}): Continuing message (${switchesLeft} switches left)`);
+            logger.info(
+              `🔄 Continuation ${stream.switches + 1}/${MAX_RESPONSE_SEGMENTS}: Reached max token limit (${MAX_TOKENS}) - Continuing (${switchesLeft} switches left, ${Math.floor(elapsedTime / 1000)}s elapsed)`,
+            );
+
+            // Stop current streamRecovery before starting new stream
+            streamRecovery.stop();
+            logger.debug('Stopped previous stream recovery');
 
             const lastUserMessage = processedMessages.filter((x) => x.role == 'user').slice(-1)[0];
             const { model, provider } = extractPropertiesFromMessage(lastUserMessage);
@@ -268,6 +295,20 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               role: 'user',
               content: `[Model: ${model}]\n\n[Provider: ${provider}]\n\n${CONTINUE_PROMPT}`,
             });
+
+            // Create new streamRecovery for continuation
+            streamRecovery = new StreamRecoveryManager({
+              timeout: 120000,
+              maxRetries: 3,
+              onTimeout: () => {
+                logger.warn(`⚠️  Continuation ${stream.switches + 1} timeout detected - attempting recovery`);
+              },
+              onRecovery: () => {
+                logger.info(`✅ Continuation ${stream.switches + 1} recovered successfully`);
+              },
+            });
+            streamRecovery.startMonitoring();
+            logger.debug('Started new stream recovery for continuation');
 
             const result = await streamText({
               messages: [...processedMessages],
@@ -289,13 +330,18 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
             (async () => {
               for await (const part of result.fullStream) {
+                streamRecovery.updateActivity(); // Update activity for continuation stream
+
                 if (part.type === 'error') {
                   const error: any = part.error;
-                  logger.error(`${error}`);
+                  logger.error(`Continuation ${stream.switches + 1} error: ${error}`);
+                  streamRecovery.stop();
 
                   return;
                 }
               }
+              streamRecovery.stop();
+              logger.debug(`Continuation ${stream.switches + 1} completed successfully`);
             })();
 
             return;

@@ -35,9 +35,21 @@ export class StreamRecoveryManager {
     this._lastActivity = Date.now();
     this._activityCount++;
 
-    // Log activity every 100 updates to track progress
+    // Log activity every 100 chunks for debugging
     if (this._activityCount % 100 === 0) {
       logger.debug(`Stream activity: ${this._activityCount} chunks processed, ${this._retryCount} retries so far`);
+    }
+
+    // Warn if processing an unusually high number of chunks (possible infinite loop)
+    if (this._activityCount === 2000) {
+      logger.warn(`⚠️  Stream has processed 2000+ chunks - possible infinite continuation loop detected`);
+    }
+
+    if (this._activityCount > 3000) {
+      logger.error(`🔴 Stream exceeded 3000 chunks - forcing stop to prevent infinite loop`);
+      this.stop();
+
+      return;
     }
 
     this._resetTimeout();
