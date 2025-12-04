@@ -16,6 +16,30 @@ export default defineConfig((config) => {
     define: {
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
     },
+    server: {
+      // Faster HMR and initial load
+      warmup: {
+        clientFiles: ['./app/root.tsx', './app/routes/_index.tsx', './app/routes/app.tsx'],
+      },
+      fs: {
+        // Allow serving files from node_modules
+        allow: ['..'],
+      },
+    },
+    optimizeDeps: {
+      // Pre-bundle heavy dependencies for faster load
+      include: [
+        'react',
+        'react-dom',
+        'react-dom/client',
+        '@remix-run/react',
+        'framer-motion',
+        'nanostores',
+        '@nanostores/react',
+      ],
+      exclude: ['@webcontainer/api'],
+      force: false, // Only force when needed
+    },
     build: {
       target: 'esnext',
       cssCodeSplit: true,
