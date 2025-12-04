@@ -35,8 +35,8 @@ export class StreamRecoveryManager {
     this._lastActivity = Date.now();
     this._activityCount++;
 
-    // Log activity every 100 chunks for debugging
-    if (this._activityCount % 100 === 0) {
+    // Log activity every 500 chunks to reduce console spam and overhead
+    if (this._activityCount % 500 === 0) {
       logger.debug(`Stream activity: ${this._activityCount} chunks processed, ${this._retryCount} retries so far`);
     }
 
