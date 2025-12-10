@@ -260,9 +260,17 @@ const ActionList = memo(({ actions }: ActionListProps) => {
           const { status, type, content } = action;
           const isLast = index === actions.length - 1;
 
+          // Create stable key from action properties
+          const actionKey =
+            action.type === 'file'
+              ? `file-${action.filePath}`
+              : action.type === 'shell'
+                ? `shell-${index}-${content.substring(0, 50)}`
+                : `${type}-${index}`;
+
           return (
             <motion.li
-              key={index}
+              key={actionKey}
               variants={actionVariants}
               initial="hidden"
               animate="visible"

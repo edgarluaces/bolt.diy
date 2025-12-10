@@ -1,5 +1,4 @@
 import type { Message } from 'ai';
-import { Fragment } from 'react';
 import { classNames } from '~/utils/classNames';
 import { AssistantMessage } from './AssistantMessage';
 import { UserMessage } from './UserMessage';
@@ -58,13 +57,16 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
               const isFirst = index === 0;
               const isHidden = annotations?.includes('hidden');
 
+              // Use stable key: messageId if available, otherwise role+index
+              const stableKey = messageId || `${role}-${index}`;
+
               if (isHidden) {
-                return <Fragment key={index} />;
+                return null;
               }
 
               return (
                 <div
-                  key={index}
+                  key={stableKey}
                   className={classNames('flex gap-4 py-3 w-full rounded-lg', {
                     'mt-4': !isFirst,
                   })}

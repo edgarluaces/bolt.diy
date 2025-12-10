@@ -199,7 +199,7 @@ const ToolResultsList = memo(({ toolInvocations, toolCallAnnotations, theme }: T
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
       <ul className="list-none space-y-4">
-        {toolInvocations.map((tool, index) => {
+        {toolInvocations.map((tool, _index) => {
           const toolCallState = tool.toolInvocation.state;
 
           if (toolCallState !== 'result') {
@@ -218,7 +218,7 @@ const ToolResultsList = memo(({ toolInvocations, toolCallAnnotations, theme }: T
 
           return (
             <motion.li
-              key={index}
+              key={toolCallId}
               variants={toolVariants}
               initial="hidden"
               animate="visible"
@@ -335,7 +335,7 @@ const ToolCallsList = memo(({ toolInvocations, toolCallAnnotations, addToolResul
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
       <ul className="list-none space-y-4">
-        {toolInvocations.map((tool, index) => {
+        {toolInvocations.map((tool, _index) => {
           const toolCallState = tool.toolInvocation.state;
 
           if (toolCallState !== 'call') {
@@ -347,7 +347,7 @@ const ToolCallsList = memo(({ toolInvocations, toolCallAnnotations, addToolResul
 
           return (
             <motion.li
-              key={index}
+              key={toolCallId}
               variants={toolVariants}
               initial="hidden"
               animate="visible"
