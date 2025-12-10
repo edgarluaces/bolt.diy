@@ -123,9 +123,10 @@ export const ToolInvocations = memo(({ toolInvocations, toolCallAnnotations, add
             </div>
           </div>
         </button>
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
           {hasToolResults && (
             <motion.button
+              key="tool-toggle"
               initial={{ width: 0 }}
               animate={{ width: 'auto' }}
               exit={{ width: 0 }}
@@ -142,9 +143,10 @@ export const ToolInvocations = memo(({ toolInvocations, toolCallAnnotations, add
           )}
         </AnimatePresence>
       </div>
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {hasToolCalls && (
           <motion.div
+            key="tool-calls"
             className="details"
             initial={{ height: 0 }}
             animate={{ height: 'auto' }}
@@ -166,6 +168,7 @@ export const ToolInvocations = memo(({ toolInvocations, toolCallAnnotations, add
 
         {hasToolResults && showDetails && (
           <motion.div
+            key="tool-results"
             className="details"
             initial={{ height: 0 }}
             animate={{ height: 'auto' }}

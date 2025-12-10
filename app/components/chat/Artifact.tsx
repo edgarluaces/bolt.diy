@@ -99,9 +99,10 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
             </div>
           </button>
           {artifact.type !== 'bundled' && <div className="bg-bolt-elements-artifacts-borderColor w-[1px]" />}
-          <AnimatePresence>
+          <AnimatePresence mode="wait">
             {actions.length && artifact.type !== 'bundled' && (
               <motion.button
+                key="artifact-toggle"
                 initial={{ width: 0 }}
                 animate={{ width: 'auto' }}
                 exit={{ width: 0 }}
@@ -135,9 +136,10 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
             </div>
           </div>
         )}
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
           {artifact.type !== 'bundled' && showActions && actions.length > 0 && (
             <motion.div
+              key="action-list"
               className="actions"
               initial={{ height: 0 }}
               animate={{ height: 'auto' }}

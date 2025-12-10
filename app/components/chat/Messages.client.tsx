@@ -9,6 +9,7 @@ import { toast } from 'react-toastify';
 import { forwardRef } from 'react';
 import type { ForwardedRef } from 'react';
 import type { ProviderInfo } from '~/types/model';
+import { ErrorBoundary } from '~/components/ui/ErrorBoundary';
 
 interface MessagesProps {
   id?: string;
@@ -65,33 +66,34 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
               }
 
               return (
-                <div
-                  key={stableKey}
-                  className={classNames('flex gap-4 py-3 w-full rounded-lg', {
-                    'mt-4': !isFirst,
-                  })}
-                >
-                  <div className="grid grid-col-1 w-full">
-                    {isUserMessage ? (
-                      <UserMessage content={content} parts={parts} />
-                    ) : (
-                      <AssistantMessage
-                        content={content}
-                        annotations={message.annotations}
-                        messageId={messageId}
-                        onRewind={handleRewind}
-                        onFork={handleFork}
-                        append={props.append}
-                        chatMode={props.chatMode}
-                        setChatMode={props.setChatMode}
-                        model={props.model}
-                        provider={props.provider}
-                        parts={parts}
-                        addToolResult={props.addToolResult}
-                      />
-                    )}
+                <ErrorBoundary key={stableKey}>
+                  <div
+                    className={classNames('flex gap-4 py-3 w-full rounded-lg', {
+                      'mt-4': !isFirst,
+                    })}
+                  >
+                    <div className="grid grid-col-1 w-full">
+                      {isUserMessage ? (
+                        <UserMessage content={content} parts={parts} />
+                      ) : (
+                        <AssistantMessage
+                          content={content}
+                          annotations={message.annotations}
+                          messageId={messageId}
+                          onRewind={handleRewind}
+                          onFork={handleFork}
+                          append={props.append}
+                          chatMode={props.chatMode}
+                          setChatMode={props.setChatMode}
+                          model={props.model}
+                          provider={props.provider}
+                          parts={parts}
+                          addToolResult={props.addToolResult}
+                        />
+                      )}
+                    </div>
                   </div>
-                </div>
+                </ErrorBoundary>
               );
             })
           : null}
