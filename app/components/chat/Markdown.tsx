@@ -194,9 +194,29 @@ export const Markdown = memo(
       } satisfies Components;
     }, []);
 
+    /*
+     * Generate a stable key based on content structure to prevent DOM reconciliation issues
+     * This forces React to unmount/remount instead of trying to patch the DOM
+     */
+    const contentKey = useMemo(() => {
+      const content = stripCodeFenceFromArtifact(children);
+
+      // Use content length buckets to reduce re-mounts while still preventing DOM conflicts
+      const lengthBucket = Math.floor(content.length / 500) * 500;
+
+      // Include artifact markers to detect structural changes
+      const hasArtifact = content.includes('__boltArtifact__');
+      const hasThought = content.includes('__boltThought__');
+
+      return `md-${lengthBucket}-${hasArtifact}-${hasThought}`;
+    }, [children]);
+
+    console.log(`📝 [Markdown] Key: ${contentKey} | Longitud: ${children.length}`);
+
     return (
       <ErrorBoundary>
         <ReactMarkdown
+          key={contentKey}
           allowedElements={allowedHTMLElements}
           className={styles.MarkdownContent}
           components={components}
