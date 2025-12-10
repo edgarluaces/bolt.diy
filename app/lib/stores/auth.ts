@@ -30,7 +30,29 @@ function loadUserFromStorage(): User | null {
     const profileData = localStorage.getItem(kUserProfile);
 
     if (token && profileData) {
-      return JSON.parse(profileData);
+      const user = JSON.parse(profileData) as User;
+
+      // Fix corrupted avatar data
+      if (user.avatar) {
+        // If avatar type is 'color' but value is not a valid hex color, fix it
+        if (user.avatar.type === 'color' && !user.avatar.value?.startsWith('#')) {
+          console.log('[Auth] Fixing corrupted avatar color value');
+          user.avatar.value = '#8a7bff'; // Default color
+          localStorage.setItem(kUserProfile, JSON.stringify(user));
+        }
+
+        // If avatar type is 'icon' but we're in color mode context, migrate
+        if (user.avatar.type === 'icon') {
+          console.log('[Auth] Migrating icon avatar to color');
+          user.avatar = {
+            type: 'color',
+            value: '#8a7bff',
+          };
+          localStorage.setItem(kUserProfile, JSON.stringify(user));
+        }
+      }
+
+      return user;
     }
   } catch (error) {
     console.error('Error loading user from storage:', error);
