@@ -23,20 +23,36 @@ export function SharedHeader() {
       return <span className="i-ph:user-circle text-xl text-bolt-elements-textPrimary" />;
     }
 
+    // Get initials from userName or email
+    const getInitials = () => {
+      if (user.userName && user.userName.length > 0) {
+        return user.userName.charAt(0).toUpperCase();
+      }
+
+      if (user.email && user.email.length > 0) {
+        return user.email.charAt(0).toUpperCase();
+      }
+
+      return 'U';
+    };
+
     switch (user.avatar.type) {
       case 'icon':
         return <span className={`i-ph:${user.avatar.value}-duotone text-xl text-bolt-elements-textPrimary`} />;
       case 'image':
         return <img src={user.avatar.value} alt="Avatar" className="w-8 h-8 rounded-full object-cover" />;
-      case 'color':
+      case 'color': {
+        // Validate that value is a valid color (starts with #)
+        const bgColor = user.avatar.value?.startsWith('#') ? user.avatar.value : '#8a7bff';
         return (
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
-            style={{ backgroundColor: user.avatar.value }}
+            style={{ backgroundColor: bgColor }}
           >
-            {user.userName?.charAt(0).toUpperCase() || 'U'}
+            {getInitials()}
           </div>
         );
+      }
       default:
         return <span className="i-ph:user-circle text-xl text-bolt-elements-textPrimary" />;
     }
