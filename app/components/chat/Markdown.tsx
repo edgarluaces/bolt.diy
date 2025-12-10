@@ -9,6 +9,7 @@ import type { Message } from 'ai';
 import styles from './Markdown.module.scss';
 import ThoughtBox from './ThoughtBox';
 import type { ProviderInfo } from '~/types/model';
+import { ErrorBoundary } from '~/components/ui/ErrorBoundary';
 
 const logger = createScopedLogger('MarkdownComponent');
 
@@ -194,15 +195,17 @@ export const Markdown = memo(
     }, []);
 
     return (
-      <ReactMarkdown
-        allowedElements={allowedHTMLElements}
-        className={styles.MarkdownContent}
-        components={components}
-        remarkPlugins={remarkPlugins(limitedMarkdown)}
-        rehypePlugins={rehypePlugins(html)}
-      >
-        {stripCodeFenceFromArtifact(children)}
-      </ReactMarkdown>
+      <ErrorBoundary>
+        <ReactMarkdown
+          allowedElements={allowedHTMLElements}
+          className={styles.MarkdownContent}
+          components={components}
+          remarkPlugins={remarkPlugins(limitedMarkdown)}
+          rehypePlugins={rehypePlugins(html)}
+        >
+          {stripCodeFenceFromArtifact(children)}
+        </ReactMarkdown>
+      </ErrorBoundary>
     );
   },
 );

@@ -8,6 +8,7 @@ import { workbenchStore } from '~/lib/stores/workbench';
 import { classNames } from '~/utils/classNames';
 import { cubicEasingFn } from '~/utils/easings';
 import { WORK_DIR } from '~/utils/constants';
+import { ErrorBoundary } from '~/components/ui/ErrorBoundary';
 
 const highlighterOptions = {
   langs: ['shell'],
@@ -256,126 +257,133 @@ const ActionList = memo(({ actions }: ActionListProps) => {
   }, [actions]);
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-      <ul className="list-none space-y-2.5">
-        {actions.map((action, index) => {
-          const { status, type, content } = action;
-          const isLast = index === actions.length - 1;
+    <ErrorBoundary>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
+      >
+        <ul className="list-none space-y-2.5">
+          {actions.map((action, index) => {
+            const { status, type, content } = action;
+            const isLast = index === actions.length - 1;
 
-          // Create stable key from action properties
-          const actionKey =
-            action.type === 'file'
-              ? `file-${action.filePath}`
-              : action.type === 'shell'
-                ? `shell-${index}-${content.substring(0, 50)}`
-                : `${type}-${index}`;
+            // Create stable key from action properties
+            const actionKey =
+              action.type === 'file'
+                ? `file-${action.filePath}`
+                : action.type === 'shell'
+                  ? `shell-${index}-${content.substring(0, 50)}`
+                  : `${type}-${index}`;
 
-          return (
-            <motion.li
-              key={actionKey}
-              variants={actionVariants}
-              initial="hidden"
-              animate="visible"
-              transition={{
-                duration: 0.2,
-                ease: cubicEasingFn,
-              }}
-            >
-              <div className="flex items-center gap-1.5 text-sm">
-                <div className={classNames('text-lg', getIconColor(action.status))}>
-                  {status === 'running' ? (
-                    <>
-                      {type !== 'start' ? (
-                        <div className="i-svg-spinners:90-ring-with-bg"></div>
-                      ) : (
-                        <div className="i-ph:terminal-window-duotone"></div>
-                      )}
-                    </>
-                  ) : status === 'pending' ? (
-                    <div className="i-ph:circle-duotone"></div>
-                  ) : status === 'complete' ? (
-                    <div className="i-ph:check"></div>
-                  ) : status === 'failed' || status === 'aborted' ? (
-                    <div className="i-ph:x"></div>
+            return (
+              <motion.li
+                key={actionKey}
+                variants={actionVariants}
+                initial="hidden"
+                animate="visible"
+                transition={{
+                  duration: 0.2,
+                  ease: cubicEasingFn,
+                }}
+              >
+                <div className="flex items-center gap-1.5 text-sm">
+                  <div className={classNames('text-lg', getIconColor(action.status))}>
+                    {status === 'running' ? (
+                      <>
+                        {type !== 'start' ? (
+                          <div className="i-svg-spinners:90-ring-with-bg"></div>
+                        ) : (
+                          <div className="i-ph:terminal-window-duotone"></div>
+                        )}
+                      </>
+                    ) : status === 'pending' ? (
+                      <div className="i-ph:circle-duotone"></div>
+                    ) : status === 'complete' ? (
+                      <div className="i-ph:check"></div>
+                    ) : status === 'failed' || status === 'aborted' ? (
+                      <div className="i-ph:x"></div>
+                    ) : null}
+                  </div>
+                  {type === 'file' ? (
+                    <div>
+                      Create{' '}
+                      <code
+                        className="bg-bolt-elements-artifacts-inlineCode-background text-bolt-elements-artifacts-inlineCode-text px-1.5 py-1 rounded-md text-bolt-elements-item-contentAccent hover:underline cursor-pointer"
+                        onClick={() => openArtifactInWorkbench(action.filePath)}
+                      >
+                        {action.filePath}
+                      </code>
+                    </div>
+                  ) : type === 'shell' ? (
+                    <div className="flex items-center w-full min-h-[28px]">
+                      <span className="flex-1">
+                        {status === 'running'
+                          ? `Ejecutando comando… ${elapsed[index] || 0}s`
+                          : status === 'complete'
+                            ? 'Comando completado'
+                            : 'Run command'}
+                      </span>
+                    </div>
+                  ) : type === 'start' ? (
+                    <div className="flex items-center w-full min-h-[28px] gap-2">
+                      <span className="flex-1">
+                        {status === 'running' ? `Starting dev server… ${elapsed[index] || 0}s` : 'Dev server started'}
+                      </span>
+                      <button
+                        className="px-2 py-1 rounded-md bg-bolt-elements-item-contentAccent text-white text-xs hover:opacity-90"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          workbenchStore.currentView.set('preview');
+                        }}
+                      >
+                        Open Preview
+                      </button>
+                    </div>
                   ) : null}
                 </div>
-                {type === 'file' ? (
-                  <div>
-                    Create{' '}
-                    <code
-                      className="bg-bolt-elements-artifacts-inlineCode-background text-bolt-elements-artifacts-inlineCode-text px-1.5 py-1 rounded-md text-bolt-elements-item-contentAccent hover:underline cursor-pointer"
-                      onClick={() => openArtifactInWorkbench(action.filePath)}
-                    >
-                      {action.filePath}
-                    </code>
-                  </div>
-                ) : type === 'shell' ? (
-                  <div className="flex items-center w-full min-h-[28px]">
-                    <span className="flex-1">
-                      {status === 'running'
-                        ? `Ejecutando comando… ${elapsed[index] || 0}s`
-                        : status === 'complete'
-                          ? 'Comando completado'
-                          : 'Run command'}
-                    </span>
-                  </div>
-                ) : type === 'start' ? (
-                  <div className="flex items-center w-full min-h-[28px] gap-2">
-                    <span className="flex-1">
-                      {status === 'running' ? `Starting dev server… ${elapsed[index] || 0}s` : 'Dev server started'}
-                    </span>
-                    <button
-                      className="px-2 py-1 rounded-md bg-bolt-elements-item-contentAccent text-white text-xs hover:opacity-90"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        workbenchStore.currentView.set('preview');
-                      }}
-                    >
-                      Open Preview
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-              {(type === 'shell' || type === 'start') && (
-                <>
-                  <ShellCodeBlock classsName={classNames('mt-1')} code={content} />
-                  {type === 'shell' && status === 'running' && (
-                    <div className="mt-2 mb-3.5 px-3 py-2.5 bg-bolt-elements-background-depth-1 rounded-md border border-bolt-elements-borderColor">
-                      <div className="flex items-center justify-between text-xs mb-1.5">
-                        <span className="flex items-center gap-1.5 text-bolt-elements-textSecondary">
-                          <div className="i-svg-spinners:3-dots-fade text-sm"></div>
-                          <span>{commandInfo[index] || 'Ejecutando...'}</span>
-                        </span>
-                        <span className="font-mono text-bolt-elements-textTertiary">{elapsed[index] || 0}s</span>
-                      </div>
-                      <div className="w-full bg-bolt-elements-background-depth-2 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full"
-                          style={{
-                            width: '100%',
-                            animation: 'progress-indeterminate 1.5s ease-in-out infinite',
-                          }}
-                        />
-                      </div>
-                      <style>{`
+                {(type === 'shell' || type === 'start') && (
+                  <>
+                    <ShellCodeBlock classsName={classNames('mt-1')} code={content} />
+                    {type === 'shell' && status === 'running' && (
+                      <div className="mt-2 mb-3.5 px-3 py-2.5 bg-bolt-elements-background-depth-1 rounded-md border border-bolt-elements-borderColor">
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className="flex items-center gap-1.5 text-bolt-elements-textSecondary">
+                            <div className="i-svg-spinners:3-dots-fade text-sm"></div>
+                            <span>{commandInfo[index] || 'Ejecutando...'}</span>
+                          </span>
+                          <span className="font-mono text-bolt-elements-textTertiary">{elapsed[index] || 0}s</span>
+                        </div>
+                        <div className="w-full bg-bolt-elements-background-depth-2 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full"
+                            style={{
+                              width: '100%',
+                              animation: 'progress-indeterminate 1.5s ease-in-out infinite',
+                            }}
+                          />
+                        </div>
+                        <style>{`
                         @keyframes progress-indeterminate {
                           0% { transform: translateX(-100%); }
                           50% { transform: translateX(0%); }
                           100% { transform: translateX(100%); }
                         }
                       `}</style>
-                    </div>
-                  )}
-                  {(type === 'start' || (type === 'shell' && status !== 'running')) && !isLast && (
-                    <div className="mb-3.5" />
-                  )}
-                </>
-              )}
-            </motion.li>
-          );
-        })}
-      </ul>
-    </motion.div>
+                      </div>
+                    )}
+                    {(type === 'start' || (type === 'shell' && status !== 'running')) && !isLast && (
+                      <div className="mb-3.5" />
+                    )}
+                  </>
+                )}
+              </motion.li>
+            );
+          })}
+        </ul>
+      </motion.div>
+    </ErrorBoundary>
   );
 });
 
