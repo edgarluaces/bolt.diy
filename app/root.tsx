@@ -1,6 +1,6 @@
 import { useStore } from '@nanostores/react';
 import type { LinksFunction } from '@remix-run/cloudflare';
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from '@remix-run/react';
+import { Links, Meta, Outlet, Scripts, ScrollRestoration, useRouteError } from '@remix-run/react';
 import tailwindReset from '@unocss/reset/tailwind-compat.css?url';
 import { themeStore } from './lib/stores/theme';
 import { stripIndents } from './utils/stripIndent';
@@ -129,6 +129,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 import { logStore } from './lib/stores/logs';
+import { ErrorBoundary as ReactErrorBoundary } from './components/ui/ErrorBoundary';
 
 // Patterns for transient DOM errors that should not show error overlay
 const TRANSIENT_ERROR_PATTERNS = [
@@ -206,8 +207,65 @@ export default function App() {
   }, []);
 
   return (
-    <Layout>
-      <Outlet />
-    </Layout>
+    <ReactErrorBoundary>
+      <Layout>
+        <Outlet />
+      </Layout>
+    </ReactErrorBoundary>
+  );
+}
+
+// Remix ErrorBoundary to catch errors at route level
+export function ErrorBoundary() {
+  const error = useRouteError();
+
+  // Check if it's a transient DOM error
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const isTransient = TRANSIENT_ERROR_PATTERNS.some((pattern) =>
+    errorMessage.toLowerCase().includes(pattern.toLowerCase()),
+  );
+
+  console.group('🚨 [Remix ErrorBoundary] Error capturado');
+  console.log('📍 Mensaje:', errorMessage);
+  console.log('🔄 Es transitorio:', isTransient);
+  console.groupEnd();
+
+  // For transient DOM errors, try to recover by reloading
+  if (isTransient) {
+    console.log('🔄 [Remix ErrorBoundary] Intentando recuperar...');
+
+    // Use useEffect equivalent for class-less component
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        console.log('🔄 [Remix ErrorBoundary] Recargando página...');
+        window.location.reload();
+      }, 100);
+    }
+
+    return (
+      <div className="flex items-center justify-center h-screen bg-bolt-elements-background-depth-1">
+        <div className="text-center">
+          <div className="i-svg-spinners:90-ring-with-bg text-4xl text-bolt-elements-loader-progress mb-4"></div>
+          <p className="text-bolt-elements-textSecondary">Recuperando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // For other errors, show error page
+  return (
+    <div className="flex items-center justify-center h-screen bg-bolt-elements-background-depth-1">
+      <div className="text-center max-w-md p-6">
+        <div className="i-ph:warning-circle text-6xl text-bolt-elements-icon-error mb-4"></div>
+        <h1 className="text-2xl font-bold text-bolt-elements-textPrimary mb-2">Error de aplicación</h1>
+        <p className="text-bolt-elements-textSecondary mb-4">{errorMessage}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-bolt-elements-button-primary-background text-bolt-elements-button-primary-text rounded-md hover:brightness-110"
+        >
+          Recargar página
+        </button>
+      </div>
+    </div>
   );
 }
