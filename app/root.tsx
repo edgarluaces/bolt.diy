@@ -130,10 +130,50 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 import { logStore } from './lib/stores/logs';
 
+// Patterns for transient DOM errors that should not show error overlay
+const TRANSIENT_ERROR_PATTERNS = [
+  'insertBefore',
+  'removeChild',
+  'appendChild',
+  'replaceChild',
+  'not a child',
+  'no es un hijo',
+];
+
+function isTransientDOMError(error: Error | string): boolean {
+  const message = typeof error === 'string' ? error : error.message;
+  return TRANSIENT_ERROR_PATTERNS.some((pattern) => message.toLowerCase().includes(pattern.toLowerCase()));
+}
+
 export default function App() {
   const theme = useStore(themeStore);
 
   useEffect(() => {
+    // Suppress Vite error overlay for transient DOM errors
+    const originalOnError = window.onerror;
+
+    window.onerror = (message, source, lineno, colno, error) => {
+      if (error && isTransientDOMError(error)) {
+        console.log('🔇 [Global] Suprimiendo error overlay para error transitorio de DOM');
+        return true; // Prevent default error handling
+      }
+
+      if (originalOnError) {
+        return originalOnError(message, source, lineno, colno, error);
+      }
+
+      return false;
+    };
+
+    // Also handle unhandled promise rejections
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (event.reason && isTransientDOMError(event.reason)) {
+        console.log('🔇 [Global] Suprimiendo unhandled rejection para error transitorio de DOM');
+        event.preventDefault();
+      }
+    };
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
     logStore.logSystem('Application initialized', {
       theme,
       platform: navigator.platform,
@@ -158,6 +198,11 @@ export default function App() {
       .catch((error) => {
         logStore.logError('Failed to initialize debug logging', error);
       });
+
+    return () => {
+      window.onerror = originalOnError;
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
   }, []);
 
   return (
