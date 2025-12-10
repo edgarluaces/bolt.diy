@@ -74,6 +74,11 @@ export const AssistantMessage = memo(
     parts,
     addToolResult,
   }: AssistantMessageProps) => {
+    // Debug logging
+    console.log(
+      `🤖 [AssistantMessage] ID: ${messageId?.substring(0, 8)}... | Contenido: ${content.length} chars | Parts: ${parts?.length || 0}`,
+    );
+
     const filteredAnnotations = (annotations?.filter(
       (annotation: JSONValue) =>
         annotation && typeof annotation === 'object' && Object.keys(annotation).includes('type'),

@@ -43,26 +43,36 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, _errorInfo: React.ErrorInfo) {
-    // Log the error but don't crash
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('[ErrorBoundary] Caught error:', error.message);
-    }
+    const isTransient = isTransientDOMError(error);
+
+    // Always log for debugging
+    console.group(`🛡️ [ErrorBoundary] Error capturado`);
+    console.log('📍 Mensaje:', error.message);
+    console.log('🔄 Es transitorio:', isTransient);
+    console.log('📊 Errores previos:', this.state.errorCount);
+    console.log('⏰ Timestamp:', new Date().toISOString());
+    console.groupEnd();
 
     // Auto-recover for transient DOM errors
-    if (isTransientDOMError(error)) {
+    if (isTransient) {
       // Clear any pending recovery
       if (this._recoveryTimeout) {
         clearTimeout(this._recoveryTimeout);
       }
 
+      console.log('🔄 [ErrorBoundary] Auto-recuperando en 50ms...');
+
       // Immediate recovery for DOM errors
       this._recoveryTimeout = setTimeout(() => {
+        console.log('✅ [ErrorBoundary] Recuperado exitosamente');
         this.setState((prev) => ({
           hasError: false,
           error: undefined,
           errorCount: prev.errorCount + 1,
         }));
       }, 50);
+    } else {
+      console.error('❌ [ErrorBoundary] Error NO transitorio - no se recuperará automáticamente');
     }
   }
 

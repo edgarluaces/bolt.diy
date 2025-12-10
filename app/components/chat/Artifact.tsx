@@ -35,6 +35,9 @@ export const Artifact = memo(({ artifactId }: ArtifactProps) => {
   const artifacts = useStore(workbenchStore.artifacts);
   const artifact = artifacts[artifactId];
 
+  // Debug logging
+  console.log(`📦 [Artifact] ID: ${artifactId} | Tipo: ${artifact?.type} | Terminado: ${allActionFinished}`);
+
   const actions = useStore(
     computed(artifact.runner.actions, (actions) => {
       // Filter out Supabase actions except for migrations
@@ -255,6 +258,9 @@ const ActionList = memo(({ actions }: ActionListProps) => {
       intervals.forEach((id) => clearInterval(id));
     };
   }, [actions]);
+
+  // Debug logging
+  console.log(`📋 [ActionList] Renderizando ${actions.length} acciones`);
 
   return (
     <ErrorBoundary>
