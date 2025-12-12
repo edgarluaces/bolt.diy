@@ -225,7 +225,7 @@ export async function selectContext(props: {
   logger.info(`Total files: ${totalFiles}`);
 
   if (totalFiles == 0) {
-    throw new Error(`Bolt failed to select files`);
+    logger.warn('No files selected - this is normal for new chats without existing files');
   }
 
   return filteredFiles;
