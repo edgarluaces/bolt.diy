@@ -2,10 +2,8 @@ import { Link, useNavigate } from '@remix-run/react';
 import { useStore } from '@nanostores/react';
 import { themeStore, toggleTheme } from '~/lib/stores/theme';
 import { isAuthenticatedStore, userStore, logout } from '~/lib/stores/auth';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { preloadChatModule } from '~/utils/preloaders';
-
-const REGISTER_POPUP_DISMISSED_KEY = 'bolt_register_popup_dismissed';
 
 export function SharedHeader() {
   const theme = useStore(themeStore);
@@ -14,6 +12,7 @@ export function SharedHeader() {
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showRegisterPopup, setShowRegisterPopup] = useState(false);
+  const popupDismissedThisSession = useRef(false);
 
   // Show register popup after 2 seconds if not authenticated
   useEffect(() => {
@@ -22,10 +21,8 @@ export function SharedHeader() {
       return undefined;
     }
 
-    // Check if user has dismissed the popup before
-    const dismissed = localStorage.getItem(REGISTER_POPUP_DISMISSED_KEY);
-
-    if (dismissed) {
+    // Only check session memory, not localStorage
+    if (popupDismissedThisSession.current) {
       return undefined;
     }
 
@@ -39,8 +36,8 @@ export function SharedHeader() {
   const handleDismissPopup = () => {
     setShowRegisterPopup(false);
 
-    // Remember that user dismissed the popup for this session
-    localStorage.setItem(REGISTER_POPUP_DISMISSED_KEY, 'true');
+    // Only remember for this session (in memory), not in localStorage
+    popupDismissedThisSession.current = true;
   };
 
   const handleRegisterClick = () => {
@@ -203,7 +200,7 @@ export function SharedHeader() {
             {/* Popup de registro */}
             {showRegisterPopup && (
               <>
-                <div className="fixed inset-0 z-40" onClick={handleDismissPopup} />
+                <div className="fixed inset-0 z-40 pointer-events-none" />
                 <div className="absolute right-0 mt-3 w-72 bg-gradient-to-br from-bolt-elements-item-contentAccent to-purple-600 rounded-xl shadow-2xl p-4 z-50 animate-fade-in">
                   {/* Flecha apuntando al icono */}
                   <div className="absolute -top-2 right-4 w-4 h-4 bg-bolt-elements-item-contentAccent rotate-45" />
