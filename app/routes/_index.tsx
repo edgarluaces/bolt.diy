@@ -1,7 +1,9 @@
 import { json, type MetaFunction } from '@remix-run/cloudflare';
 import { Link } from '@remix-run/react';
+import { useStore } from '@nanostores/react';
 import { SharedHeader } from '~/components/header/SharedHeader';
 import BackgroundRays from '~/components/ui/BackgroundRays';
+import { isAuthenticatedStore } from '~/lib/stores/auth';
 
 export const meta: MetaFunction = () => {
   return [{ title: 'Bolt' }, { name: 'description', content: 'Talk with Bolt, an AI assistant from StackBlitz' }];
@@ -16,6 +18,8 @@ export const loader = () => json({});
  * to keep the UI clean and consistent with the design system.
  */
 export default function Index() {
+  const isAuthenticated = useStore(isAuthenticatedStore);
+
   return (
     <div className="flex flex-col h-full w-full bg-bolt-elements-background-depth-1">
       <BackgroundRays />
@@ -40,7 +44,7 @@ export default function Index() {
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
-              to="/app"
+              to={isAuthenticated ? '/app' : '/login'}
               className="inline-flex items-center gap-2 rounded-xl px-5 py-3 bg-bolt-elements-item-contentAccent text-white hover:opacity-90 transition shadow-lg"
             >
               Entrar ahora

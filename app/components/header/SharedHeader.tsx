@@ -5,8 +5,6 @@ import { isAuthenticatedStore, userStore, logout } from '~/lib/stores/auth';
 import { useState, useEffect } from 'react';
 import { preloadChatModule } from '~/utils/preloaders';
 
-const REGISTER_POPUP_DISMISSED_KEY = 'bolt_register_popup_dismissed';
-
 export function SharedHeader() {
   const theme = useStore(themeStore);
   const isAuthenticated = useStore(isAuthenticatedStore);
@@ -29,13 +27,6 @@ export function SharedHeader() {
       return undefined;
     }
 
-    // Check if user has permanently dismissed the popup
-    const dismissed = localStorage.getItem(REGISTER_POPUP_DISMISSED_KEY);
-
-    if (dismissed === 'true') {
-      return undefined;
-    }
-
     const timer = setTimeout(() => {
       setShowRegisterPopup(true);
     }, 1000);
@@ -45,9 +36,6 @@ export function SharedHeader() {
 
   const handleDismissPopup = () => {
     setShowRegisterPopup(false);
-
-    // Permanently dismiss - user clicked X, don't show again
-    localStorage.setItem(REGISTER_POPUP_DISMISSED_KEY, 'true');
   };
 
   const handleRegisterClick = () => {
@@ -217,11 +205,12 @@ export function SharedHeader() {
 
                   {/* Botón cerrar */}
                   <button
+                    type="button"
                     onClick={handleDismissPopup}
-                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-full text-white transition"
+                    className="absolute top-2 right-2 z-10 w-6 h-6 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-full text-white transition cursor-pointer"
                     aria-label="Cerrar"
                   >
-                    <span className="i-ph:x-bold text-sm" />
+                    <span className="i-ph:x-bold text-sm pointer-events-none" />
                   </button>
 
                   {/* Contenido */}

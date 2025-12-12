@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { json, type MetaFunction } from '@remix-run/cloudflare';
 import { useNavigate } from '@remix-run/react';
 import { useStore } from '@nanostores/react';
@@ -17,6 +17,8 @@ export default function Space() {
   const isAuthenticated = useStore(isAuthenticatedStore);
   const user = useStore(userStore);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isInitialLoad = useRef(true);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [userName, setUserName] = useState('');
   const [bio, setBio] = useState('');
@@ -26,6 +28,7 @@ export default function Space() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   // Redirigir si no está autenticado
   useEffect(() => {
@@ -51,8 +54,65 @@ export default function Space() {
           setImageUrl(user.avatar.value);
         }
       }
+
+      // Mark initial load as complete after a short delay
+      setTimeout(() => {
+        isInitialLoad.current = false;
+      }, 100);
     }
   }, [user]);
+
+  // Auto-save function
+  const autoSave = useCallback(() => {
+    if (isInitialLoad.current) {
+      return;
+    }
+
+    let avatarValue = '';
+
+    if (avatarType === 'color') {
+      avatarValue = selectedColor;
+    } else if (avatarType === 'image') {
+      avatarValue = imageUrl;
+    }
+
+    setSaveStatus('saving');
+
+    updateUserProfile({
+      userName,
+      bio,
+      avatar: {
+        type: avatarType,
+        value: avatarValue,
+      },
+    });
+
+    setTimeout(() => {
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 1500);
+    }, 300);
+  }, [userName, bio, avatarType, selectedColor, imageUrl]);
+
+  // Debounced auto-save when any profile field changes
+  useEffect(() => {
+    if (isInitialLoad.current) {
+      return undefined;
+    }
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      autoSave();
+    }, 500);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [userName, bio, avatarType, selectedColor, imageUrl, autoSave]);
 
   const colorPalette = [
     '#8a7bff',
@@ -81,31 +141,6 @@ export default function Space() {
         setAvatarType('image');
       };
       reader.readAsDataURL(file);
-    }
-  };
-
-  const handleSaveProfile = () => {
-    let avatarValue = '';
-
-    if (avatarType === 'color') {
-      avatarValue = selectedColor;
-    } else if (avatarType === 'image') {
-      avatarValue = imageUrl;
-    }
-
-    const success = updateUserProfile({
-      userName,
-      bio,
-      avatar: {
-        type: avatarType,
-        value: avatarValue,
-      },
-    });
-
-    if (success) {
-      alert('✅ Perfil guardado correctamente');
-    } else {
-      alert('❌ Error al guardar el perfil');
     }
   };
 
@@ -156,15 +191,23 @@ export default function Space() {
             </p>
           </div>
 
-          {/* Botón Guardar - arriba */}
-          <div className="mb-6">
-            <button
-              onClick={handleSaveProfile}
-              className="w-full px-6 py-3 rounded-xl bg-bolt-elements-item-contentAccent text-white font-semibold hover:opacity-90 transition flex items-center justify-center gap-2"
-            >
-              <span className="i-ph:floppy-disk-duotone text-xl" />
-              Guardar Cambios
-            </button>
+          {/* Indicador de auto-guardado */}
+          <div className="mb-6 flex items-center justify-end gap-2 text-sm">
+            {saveStatus === 'saving' && (
+              <>
+                <span className="i-svg-spinners:90-ring-with-bg text-bolt-elements-item-contentAccent" />
+                <span className="text-bolt-elements-textSecondary">Guardando...</span>
+              </>
+            )}
+            {saveStatus === 'saved' && (
+              <>
+                <span className="i-ph:check-circle-duotone text-green-500" />
+                <span className="text-green-500">Guardado</span>
+              </>
+            )}
+            {saveStatus === 'idle' && (
+              <span className="text-bolt-elements-textTertiary">Los cambios se guardan automáticamente</span>
+            )}
           </div>
 
           {/* Sección: Avatar */}
