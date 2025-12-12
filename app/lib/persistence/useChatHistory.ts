@@ -180,7 +180,12 @@ ${value.content}
             chatId.set(storedMessages.id);
             chatMetadata.set(storedMessages.metadata);
           } else {
-            navigate('/', { replace: true });
+            // Only navigate away if workbench is not active (to avoid interrupting generation)
+            const isWorkbenchActive = workbenchStore.showWorkbench.get();
+
+            if (!isWorkbenchActive) {
+              navigate('/', { replace: true });
+            }
           }
 
           setReady(true);
