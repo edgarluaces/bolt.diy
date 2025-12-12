@@ -132,6 +132,9 @@ export function logout() {
   localStorage.removeItem(kUserProfile);
   localStorage.removeItem(kUserPassword);
 
+  // Clear register popup dismissed so it shows again for new users
+  localStorage.removeItem('bolt_register_popup_dismissed');
+
   // Actualizar stores
   userStore.set(null);
   isAuthenticatedStore.set(false);
