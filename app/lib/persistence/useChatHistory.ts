@@ -194,11 +194,18 @@ ${value.content}
     } else {
       /*
        * Handle case where there is no mixedId (e.g., new chat)
-       * Reset workbench to ensure a fresh start
+       * Only reset if workbench is not currently showing (to avoid resetting during generation)
        */
-      workbenchStore.reset().then(() => {
+      const isWorkbenchActive = workbenchStore.showWorkbench.get();
+
+      if (isWorkbenchActive) {
+        // Don't reset if workbench is active - user is likely in the middle of something
         setReady(true);
-      });
+      } else {
+        workbenchStore.reset().then(() => {
+          setReady(true);
+        });
+      }
     }
   }, [mixedId, db, navigate, searchParams]); // Added db, navigate, searchParams dependencies
 
