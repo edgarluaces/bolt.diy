@@ -169,6 +169,14 @@ export class PreviewsStore {
   async #init() {
     const webcontainer = await this.#webcontainer;
 
+    // Safety check - ensure webcontainer has the 'on' method
+    if (!webcontainer || typeof webcontainer.on !== 'function') {
+      console.warn('[Preview] WebContainer not ready or missing event methods, retrying in 1s...');
+      setTimeout(() => this.#init(), 1000);
+
+      return;
+    }
+
     // Listen for server ready events
     webcontainer.on('server-ready', (port, url) => {
       console.log('[Preview] Server ready on port:', port, url);
