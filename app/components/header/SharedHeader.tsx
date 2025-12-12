@@ -225,8 +225,8 @@ export function SharedHeader() {
                   </button>
 
                   {/* Contenido */}
-                  <div className="relative">
-                    <div className="flex items-center gap-2 mb-2">
+                  <div className="relative pt-2">
+                    <div className="flex items-center gap-2 mb-2 pr-6">
                       <span className="i-ph:rocket-launch-duotone text-2xl text-white" />
                       <h3 className="text-lg font-bold text-white">¿Quieres empezar a crear?</h3>
                     </div>
