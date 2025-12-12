@@ -1,4 +1,4 @@
-import { Link, useNavigate } from '@remix-run/react';
+import { Link, useNavigate, useLocation } from '@remix-run/react';
 import { useStore } from '@nanostores/react';
 import { themeStore, toggleTheme } from '~/lib/stores/theme';
 import { isAuthenticatedStore, userStore, logout } from '~/lib/stores/auth';
@@ -10,12 +10,19 @@ export function SharedHeader() {
   const isAuthenticated = useStore(isAuthenticatedStore);
   const user = useStore(userStore);
   const navigate = useNavigate();
+  const location = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showRegisterPopup, setShowRegisterPopup] = useState(false);
   const popupDismissedThisSession = useRef(false);
 
-  // Show register popup after 2 seconds if not authenticated
+  // Show register popup after 1 second if not authenticated and on landing page
   useEffect(() => {
+    // Only show on landing page (/)
+    if (location.pathname !== '/') {
+      setShowRegisterPopup(false);
+      return undefined;
+    }
+
     if (isAuthenticated) {
       setShowRegisterPopup(false);
       return undefined;
@@ -28,10 +35,10 @@ export function SharedHeader() {
 
     const timer = setTimeout(() => {
       setShowRegisterPopup(true);
-    }, 2000);
+    }, 1000);
 
     return () => clearTimeout(timer);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, location.pathname]);
 
   const handleDismissPopup = () => {
     setShowRegisterPopup(false);
