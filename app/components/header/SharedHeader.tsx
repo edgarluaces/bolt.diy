@@ -2,8 +2,10 @@ import { Link, useNavigate } from '@remix-run/react';
 import { useStore } from '@nanostores/react';
 import { themeStore, toggleTheme } from '~/lib/stores/theme';
 import { isAuthenticatedStore, userStore, logout } from '~/lib/stores/auth';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { preloadChatModule } from '~/utils/preloaders';
+
+const REGISTER_POPUP_DISMISSED_KEY = 'bolt_register_popup_dismissed';
 
 export function SharedHeader() {
   const theme = useStore(themeStore);
@@ -11,6 +13,40 @@ export function SharedHeader() {
   const user = useStore(userStore);
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showRegisterPopup, setShowRegisterPopup] = useState(false);
+
+  // Show register popup after 2 seconds if not authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      setShowRegisterPopup(false);
+      return undefined;
+    }
+
+    // Check if user has dismissed the popup before
+    const dismissed = localStorage.getItem(REGISTER_POPUP_DISMISSED_KEY);
+
+    if (dismissed) {
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      setShowRegisterPopup(true);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [isAuthenticated]);
+
+  const handleDismissPopup = () => {
+    setShowRegisterPopup(false);
+
+    // Remember that user dismissed the popup for this session
+    localStorage.setItem(REGISTER_POPUP_DISMISSED_KEY, 'true');
+  };
+
+  const handleRegisterClick = () => {
+    setShowRegisterPopup(false);
+    navigate('/login');
+  };
 
   const handleLogout = () => {
     logout();
@@ -154,14 +190,55 @@ export function SharedHeader() {
             )}
           </div>
         ) : (
-          <Link
-            to="/login"
-            className="flex items-center justify-center w-10 h-10 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-3 hover:bg-bolt-elements-background-depth-4 transition"
-            aria-label="Iniciar sesión"
-            title="Iniciar sesión"
-          >
-            <span className="i-ph:user text-xl text-bolt-elements-textPrimary" />
-          </Link>
+          <div className="relative">
+            <Link
+              to="/login"
+              className="flex items-center justify-center w-10 h-10 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-3 hover:bg-bolt-elements-background-depth-4 transition"
+              aria-label="Iniciar sesión"
+              title="Iniciar sesión"
+            >
+              <span className="i-ph:user text-xl text-bolt-elements-textPrimary" />
+            </Link>
+
+            {/* Popup de registro */}
+            {showRegisterPopup && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={handleDismissPopup} />
+                <div className="absolute right-0 mt-3 w-72 bg-gradient-to-br from-bolt-elements-item-contentAccent to-purple-600 rounded-xl shadow-2xl p-4 z-50 animate-fade-in">
+                  {/* Flecha apuntando al icono */}
+                  <div className="absolute -top-2 right-4 w-4 h-4 bg-bolt-elements-item-contentAccent rotate-45" />
+
+                  {/* Botón cerrar */}
+                  <button
+                    onClick={handleDismissPopup}
+                    className="absolute top-2 right-2 text-white/70 hover:text-white transition"
+                    aria-label="Cerrar"
+                  >
+                    <span className="i-ph:x text-lg" />
+                  </button>
+
+                  {/* Contenido */}
+                  <div className="relative">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="i-ph:rocket-launch-duotone text-2xl text-white" />
+                      <h3 className="text-lg font-bold text-white">¿Quieres empezar a crear?</h3>
+                    </div>
+                    <p className="text-white/90 text-sm mb-4">
+                      Regístrate gratis ahora y empieza a construir tus proyectos web con IA.
+                    </p>
+                    <button
+                      onClick={handleRegisterClick}
+                      className="w-full py-2.5 px-4 bg-white text-bolt-elements-item-contentAccent font-semibold rounded-lg hover:bg-white/90 transition flex items-center justify-center gap-2"
+                    >
+                      <span className="i-ph:user-plus-duotone text-lg" />
+                      Registrarme gratis
+                    </button>
+                    <p className="text-white/60 text-xs text-center mt-2">Sin tarjeta de crédito requerida</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         )}
       </div>
     </header>
