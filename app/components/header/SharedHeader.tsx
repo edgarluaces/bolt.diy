@@ -2,8 +2,10 @@ import { Link, useNavigate, useLocation } from '@remix-run/react';
 import { useStore } from '@nanostores/react';
 import { themeStore, toggleTheme } from '~/lib/stores/theme';
 import { isAuthenticatedStore, userStore, logout } from '~/lib/stores/auth';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { preloadChatModule } from '~/utils/preloaders';
+
+const REGISTER_POPUP_DISMISSED_KEY = 'bolt_register_popup_dismissed';
 
 export function SharedHeader() {
   const theme = useStore(themeStore);
@@ -13,7 +15,6 @@ export function SharedHeader() {
   const location = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showRegisterPopup, setShowRegisterPopup] = useState(false);
-  const popupDismissedThisSession = useRef(false);
 
   // Show register popup after 1 second if not authenticated and on landing page
   useEffect(() => {
@@ -28,8 +29,10 @@ export function SharedHeader() {
       return undefined;
     }
 
-    // Only check session memory, not localStorage
-    if (popupDismissedThisSession.current) {
+    // Check if user has permanently dismissed the popup
+    const dismissed = localStorage.getItem(REGISTER_POPUP_DISMISSED_KEY);
+
+    if (dismissed === 'true') {
       return undefined;
     }
 
@@ -43,8 +46,8 @@ export function SharedHeader() {
   const handleDismissPopup = () => {
     setShowRegisterPopup(false);
 
-    // Only remember for this session (in memory), not in localStorage
-    popupDismissedThisSession.current = true;
+    // Permanently dismiss - user clicked X, don't show again
+    localStorage.setItem(REGISTER_POPUP_DISMISSED_KEY, 'true');
   };
 
   const handleRegisterClick = () => {
@@ -215,10 +218,10 @@ export function SharedHeader() {
                   {/* Botón cerrar */}
                   <button
                     onClick={handleDismissPopup}
-                    className="absolute top-2 right-2 text-white/70 hover:text-white transition"
+                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-full text-white transition"
                     aria-label="Cerrar"
                   >
-                    <span className="i-ph:x text-lg" />
+                    <span className="i-ph:x-bold text-sm" />
                   </button>
 
                   {/* Contenido */}
@@ -237,7 +240,6 @@ export function SharedHeader() {
                       <span className="i-ph:user-plus-duotone text-lg" />
                       Registrarme gratis
                     </button>
-                    <p className="text-white/60 text-xs text-center mt-2">Sin tarjeta de crédito requerida</p>
                   </div>
                 </div>
               </>
