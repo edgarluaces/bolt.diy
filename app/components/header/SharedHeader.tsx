@@ -211,7 +211,7 @@ export function SharedHeader() {
             {showRegisterPopup && (
               <>
                 <div className="fixed inset-0 z-40 pointer-events-none" />
-                <div className="absolute right-0 mt-3 w-72 bg-gradient-to-br from-bolt-elements-item-contentAccent to-purple-600 rounded-xl shadow-2xl p-4 z-50 animate-fade-in">
+                <div className="absolute right-0 mt-3 w-80 bg-gradient-to-br from-bolt-elements-item-contentAccent to-purple-600 rounded-xl shadow-2xl p-4 z-50 animate-fade-in">
                   {/* Flecha apuntando al icono */}
                   <div className="absolute -top-2 right-4 w-4 h-4 bg-bolt-elements-item-contentAccent rotate-45" />
 
@@ -227,8 +227,8 @@ export function SharedHeader() {
                   {/* Contenido */}
                   <div className="relative pt-2">
                     <div className="flex items-center gap-2 mb-2 pr-6">
-                      <span className="i-ph:rocket-launch-duotone text-2xl text-white" />
-                      <h3 className="text-lg font-bold text-white">¿Quieres empezar a crear?</h3>
+                      <span className="i-ph:rocket-launch-duotone text-2xl text-white flex-shrink-0" />
+                      <h3 className="text-lg font-bold text-white whitespace-nowrap">¿Listo para crear?</h3>
                     </div>
                     <p className="text-white/90 text-sm mb-4">
                       Regístrate gratis ahora y empieza a construir tus proyectos web con IA.
