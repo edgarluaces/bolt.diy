@@ -17,9 +17,9 @@ export default defineConfig((config) => {
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
     },
     server: {
-      // Faster HMR and initial load
+      // Faster HMR and initial load - only warmup landing page, NOT /app route
       warmup: {
-        clientFiles: ['./app/root.tsx', './app/routes/_index.tsx', './app/routes/app.tsx'],
+        clientFiles: ['./app/root.tsx', './app/routes/_index.tsx', './app/routes/space.tsx'],
       },
       fs: {
         // Allow serving files from node_modules

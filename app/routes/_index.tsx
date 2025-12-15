@@ -1,9 +1,11 @@
+import { useState, useEffect } from 'react';
 import { json, type MetaFunction } from '@remix-run/cloudflare';
 import { Link } from '@remix-run/react';
 import { useStore } from '@nanostores/react';
 import { SharedHeader } from '~/components/header/SharedHeader';
 import BackgroundRays from '~/components/ui/BackgroundRays';
 import { isAuthenticatedStore } from '~/lib/stores/auth';
+import { TutorialPopup } from '~/components/ui/TutorialPopup';
 
 export const meta: MetaFunction = () => {
   return [{ title: 'Bolt' }, { name: 'description', content: 'Talk with Bolt, an AI assistant from StackBlitz' }];
@@ -19,6 +21,16 @@ export const loader = () => json({});
  */
 export default function Index() {
   const isAuthenticated = useStore(isAuthenticatedStore);
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  // Show tutorial popup after 1 second
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowTutorial(true);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="flex flex-col h-full w-full bg-bolt-elements-background-depth-1">
@@ -43,13 +55,18 @@ export default function Index() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link
-              to={isAuthenticated ? '/app' : '/login'}
-              className="inline-flex items-center gap-2 rounded-xl px-5 py-3 bg-bolt-elements-item-contentAccent text-white hover:opacity-90 transition shadow-lg"
-            >
-              Entrar ahora
-              <span className="i-ph:arrow-right" />
-            </Link>
+            <div className="relative">
+              <Link
+                to={isAuthenticated ? '/app' : '/login'}
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-3 bg-bolt-elements-item-contentAccent text-white hover:opacity-90 transition shadow-lg"
+              >
+                Entrar ahora
+                <span className="i-ph:arrow-right" />
+              </Link>
+
+              {/* Tutorial Popup positioned below button */}
+              {showTutorial && <TutorialPopup isOpen={showTutorial} onClose={() => setShowTutorial(false)} inline />}
+            </div>
           </div>
 
           <section id="features" className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-4">
