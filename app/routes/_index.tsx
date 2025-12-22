@@ -8,7 +8,7 @@ import { isAuthenticatedStore } from '~/lib/stores/auth';
 import { TutorialPopup } from '~/components/ui/TutorialPopup';
 
 export const meta: MetaFunction = () => {
-  return [{ title: 'Bolt' }, { name: 'description', content: 'Talk with Bolt, an AI assistant from StackBlitz' }];
+  return [{ title: 'FlashWeb' }, { name: 'description', content: 'Crea aplicaciones web con IA' }];
 };
 
 export const loader = () => json({});

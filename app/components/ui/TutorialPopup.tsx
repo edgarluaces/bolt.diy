@@ -4,37 +4,56 @@ interface TutorialStep {
   title: string;
   description: string;
   icon: string;
+  stepIndicator?: string;
 }
 
 const TUTORIAL_STEPS: TutorialStep[] = [
   {
-    title: '1. Escribe tu idea',
+    title: '1. Selecciona la IA y el modelo',
     description:
-      'Describe lo que quieres crear en el chat. Por ejemplo: "Crea una landing page para una cafetería" o "Haz una app de tareas con React".',
-    icon: 'i-ph:chat-circle-text-duotone',
+      'Elige el proveedor de IA (OpenAI, Anthropic, Google, etc.) y el modelo que quieras usar desde el menú de configuración.',
+    icon: 'i-ph:brain-duotone',
+    stepIndicator: 'Paso 1 de 6',
   },
   {
-    title: '2. Observa la magia',
+    title: '2. Introduce tu clave API',
+    description:
+      'Añade tu clave API del proveedor seleccionado. Puedes obtenerla desde la web oficial del proveedor.',
+    icon: 'i-ph:key-duotone',
+    stepIndicator: 'Paso 2 de 6',
+  },
+  {
+    title: '3. Escribe tu idea',
+    description:
+      'Describe lo que quieres crear en el chat. Por ejemplo: "Crea una web para una cafetería" o "Haz una app de tareas con React".',
+    icon: 'i-ph:chat-circle-text-duotone',
+    stepIndicator: 'Paso 3 de 6',
+  },
+  {
+    title: '4. Observa la magia',
     description:
       'La IA generará el código automáticamente. Verás los archivos creándose en tiempo real en el panel de código.',
     icon: 'i-ph:magic-wand-duotone',
+    stepIndicator: 'Paso 4 de 6',
   },
   {
-    title: '3. Vista previa instantánea',
+    title: '5. Vista previa',
     description:
-      'El servidor se inicia automáticamente y podrás ver tu proyecto funcionando en la vista previa del lado derecho.',
+      'Una vez generado el código, el servidor se inicia automáticamente y podrás ver tu proyecto funcionando en la vista previa.',
     icon: 'i-ph:eye-duotone',
+    stepIndicator: 'Paso 5 de 6',
   },
   {
-    title: '4. Itera y mejora',
-    description:
-      'Pide cambios en el chat: "Cambia el color a azul", "Añade un formulario de contacto". La IA modificará el código al instante.',
-    icon: 'i-ph:arrows-clockwise-duotone',
+    title: '¡Listo!',
+    description: '¡Ya sabes todo lo necesario para empezar a crear! Pulsa Finalizar para comenzar.',
+    icon: 'i-ph:confetti-duotone',
+    stepIndicator: 'Paso 6 de 6',
   },
   {
-    title: '5. Guarda y despliega',
-    description: 'Exporta tu proyecto a GitHub o despliega directamente a Netlify o Vercel con un solo clic.',
-    icon: 'i-ph:rocket-launch-duotone',
+    title: '¡Listo!',
+    description: '¡Ya sabes todo lo necesario para empezar a crear! Pulsa Finalizar para comenzar.',
+    icon: 'i-ph:confetti-duotone',
+    stepIndicator: 'Paso 6 de 6',
   },
 ];
 
@@ -58,17 +77,23 @@ export function TutorialPopup({ isOpen, onClose, inline = false }: TutorialPopup
   };
 
   const handleNext = () => {
-    if (currentStep < TUTORIAL_STEPS.length - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      handleClose();
-    }
+    setCurrentStep((prev) => {
+      if (prev < TUTORIAL_STEPS.length - 1) {
+        return prev + 1;
+      }
+
+      return prev;
+    });
   };
 
   const handlePrev = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
+    setCurrentStep((prev) => {
+      if (prev > 0) {
+        return prev - 1;
+      }
+
+      return prev;
+    });
   };
 
   const handleClose = () => {
@@ -170,12 +195,12 @@ export function TutorialPopup({ isOpen, onClose, inline = false }: TutorialPopup
 
   // Full tutorial modal
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleClose} />
-
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={handleClose}>
       {/* Popup */}
-      <div className="relative bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor rounded-2xl shadow-2xl w-[90%] max-w-2xl animate-fade-in-up">
+      <div
+        className="relative bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor rounded-2xl shadow-2xl w-[90%] max-w-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Close button */}
         <button
           onClick={handleClose}
@@ -185,9 +210,9 @@ export function TutorialPopup({ isOpen, onClose, inline = false }: TutorialPopup
         </button>
 
         <div className="p-8">
-          {/* Progress bar */}
+          {/* Progress bar - show only first 6 steps */}
           <div className="flex gap-1.5 mb-6">
-            {TUTORIAL_STEPS.map((_, index) => (
+            {[0, 1, 2, 3, 4, 5].map((index) => (
               <div
                 key={index}
                 className={`h-1 flex-1 rounded-full transition-colors ${
@@ -209,15 +234,20 @@ export function TutorialPopup({ isOpen, onClose, inline = false }: TutorialPopup
           </div>
 
           {/* Step indicator */}
-          <div className="text-center text-sm text-bolt-elements-textTertiary mb-6">
-            Paso {currentStep + 1} de {TUTORIAL_STEPS.length}
-          </div>
+          {currentTutorialStep.stepIndicator && (
+            <div className="text-center text-sm text-bolt-elements-textTertiary mb-6">
+              {currentTutorialStep.stepIndicator}
+            </div>
+          )}
 
           {/* Navigation buttons */}
           <div className="flex gap-3 justify-center">
             {currentStep > 0 && (
               <button
-                onClick={handlePrev}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePrev();
+                }}
                 className="px-5 py-2.5 rounded-xl border border-bolt-elements-borderColor text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-3 transition inline-flex items-center gap-2"
               >
                 <span className="i-ph:arrow-left" />
@@ -225,7 +255,15 @@ export function TutorialPopup({ isOpen, onClose, inline = false }: TutorialPopup
               </button>
             )}
             <button
-              onClick={handleNext}
+              onClick={(e) => {
+                e.stopPropagation();
+
+                if (currentStep < TUTORIAL_STEPS.length - 1) {
+                  handleNext();
+                } else {
+                  handleClose();
+                }
+              }}
               className="px-5 py-2.5 rounded-xl bg-bolt-elements-item-contentAccent text-white hover:opacity-90 transition shadow-lg inline-flex items-center gap-2"
             >
               {currentStep < TUTORIAL_STEPS.length - 1 ? (
@@ -236,7 +274,7 @@ export function TutorialPopup({ isOpen, onClose, inline = false }: TutorialPopup
               ) : (
                 <>
                   <span className="i-ph:check" />
-                  ¡Entendido!
+                  Finalizar
                 </>
               )}
             </button>
