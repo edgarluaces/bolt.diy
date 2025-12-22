@@ -17,8 +17,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     title: '2. Introduce tu clave API',
-    description:
-      'Añade tu clave API del proveedor seleccionado. Puedes obtenerla desde la web oficial del proveedor.',
+    description: 'Añade tu clave API del proveedor seleccionado. Puedes obtenerla desde la web oficial del proveedor.',
     icon: 'i-ph:key-duotone',
     stepIndicator: 'Paso 2 de 6',
   },
@@ -195,7 +194,10 @@ export function TutorialPopup({ isOpen, onClose, inline = false }: TutorialPopup
 
   // Full tutorial modal
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={handleClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={handleClose}
+    >
       {/* Popup */}
       <div
         className="relative bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor rounded-2xl shadow-2xl w-[90%] max-w-2xl"
